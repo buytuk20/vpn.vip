@@ -3,36 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>B.T.C VPN - لوحة التحكم الاحترافية</title>
+    <title>B.T.C VPN - لوحة التحكم</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
         * { font-family: 'Cairo', sans-serif; }
-        body { background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%); }
-        .glass { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        body { 
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+        }
+        .glass { 
+            background: rgba(255, 255, 255, 0.05); 
+            backdrop-filter: blur(10px); 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
         .gold-text { color: #FFD700; }
         .gold-bg { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
-        .btn-gold { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); color: #000; transition: all 0.3s; }
-        .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3); }
-        .card-hover { transition: all 0.3s; }
-        .card-hover:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.3); }
-        .fade-in { animation: fadeIn 0.5s ease-in; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
-        .pulse { animation: pulse 2s infinite; }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1a1a2e; }
-        ::-webkit-scrollbar-thumb { background: #FFD700; border-radius: 4px; }
+        .btn-gold { 
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); 
+            color: #000; 
+            transition: all 0.3s; 
+        }
+        .btn-gold:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3); 
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(0,0,0,0.2);
+            border-top-color: #000;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
     </style>
 </head>
-<body class="text-white min-h-screen">
+<body class="text-white">
 
     <!-- شاشة تسجيل الدخول -->
     <div id="loginScreen" class="flex items-center justify-center min-h-screen p-4">
-        <div class="glass rounded-2xl p-8 w-full max-w-md fade-in">
+        <div class="glass rounded-2xl p-8 w-full max-w-md">
             <div class="text-center mb-8">
-                <div class="w-20 h-20 mx-auto mb-4 rounded-full gold-bg flex items-center justify-center text-4xl"></div>
+                <div class="w-20 h-20 mx-auto mb-4 rounded-full gold-bg flex items-center justify-center text-4xl">🔐</div>
                 <h1 class="text-4xl font-black gold-text">B.T.C VPN</h1>
                 <p class="text-gray-400 mt-2">لوحة التحكم الاحترافية</p>
             </div>
@@ -40,31 +54,25 @@
             <div class="space-y-4">
                 <div>
                     <label class="block text-sm text-gray-400 mb-2">اسم المستخدم</label>
-                    <input id="username" type="text" placeholder="admin أو reseller1" 
-                           class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none transition">
+                    <input id="username" type="text" placeholder="أدخل اسم المستخدم" 
+                           class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
                 </div>
                 <div>
                     <label class="block text-sm text-gray-400 mb-2">كلمة المرور</label>
-                    <input id="password" type="password" placeholder="••••••••" 
-                           class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none transition">
+                    <input id="password" type="password" placeholder="أدخل كلمة المرور" 
+                           class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
                 </div>
-                <button onclick="login()" class="w-full btn-gold p-3 rounded-lg font-bold text-lg">
+                <button onclick="doLogin()" id="loginBtn" class="w-full btn-gold p-3 rounded-lg font-bold text-lg">
                     تسجيل الدخول
                 </button>
             </div>
             
-            <div id="loginError" class="mt-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-400 text-center hidden"></div>
-            
-            <div class="mt-6 p-4 bg-gray-800/30 rounded-lg text-sm">
-                <p class="text-gray-400 mb-2">بيانات تجريبية:</p>
-                <p class="text-yellow-400">👑 Admin: <span class="text-white">admin / admin123</span></p>
-                <p class="text-yellow-400 mt-1">👤 Reseller: <span class="text-white">reseller1 / reseller123</span></p>
-            </div>
+            <div id="errorMsg" class="mt-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-400 text-center hidden"></div>
         </div>
     </div>
 
     <!-- لوحة التحكم -->
-    <div id="dashboard" class="hidden">
+    <div id="dashboard" class="hidden min-h-screen">
         <!-- الشريط العلوي -->
         <nav class="glass border-b border-gray-700 sticky top-0 z-50">
             <div class="container mx-auto px-6 py-4 flex justify-between items-center">
@@ -77,10 +85,10 @@
                 </div>
                 <div class="flex items-center gap-4">
                     <div class="text-left">
-                        <p id="userInfo" class="text-sm text-gray-400"></p>
+                        <p id="userName" class="text-sm text-gray-400"></p>
                         <p id="userCredits" class="text-lg font-bold gold-text"></p>
                     </div>
-                    <button onclick="logout()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition text-sm">
+                    <button onclick="doLogout()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition text-sm">
                         🚪 خروج
                     </button>
                 </div>
@@ -89,129 +97,68 @@
 
         <div class="container mx-auto px-6 py-8">
             <!-- الإحصائيات -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8 fade-in">
-                <div class="glass rounded-xl p-6 card-hover">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-400 text-sm">إجمالي الحسابات</p>
-                            <p id="statTotal" class="text-3xl font-black text-blue-400 mt-2">0</p>
-                        </div>
-                        <div class="text-4xl">👥</div>
-                    </div>
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+                <div class="glass rounded-xl p-6">
+                    <p class="text-gray-400 text-sm">الرصيد المتاح</p>
+                    <p id="statCredits" class="text-3xl font-black gold-text mt-2">0</p>
                 </div>
-                <div class="glass rounded-xl p-6 card-hover">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-400 text-sm">الحسابات النشطة</p>
-                            <p id="statActive" class="text-3xl font-black text-green-400 mt-2">0</p>
-                        </div>
-                        <div class="text-4xl">✅</div>
-                    </div>
+                <div class="glass rounded-xl p-6">
+                    <p class="text-gray-400 text-sm">إجمالي الحسابات</p>
+                    <p id="statTotal" class="text-3xl font-black text-blue-400 mt-2">0</p>
                 </div>
-                <div class="glass rounded-xl p-6 card-hover">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-400 text-sm">المنتهية</p>
-                            <p id="statExpired" class="text-3xl font-black text-red-400 mt-2">0</p>
-                        </div>
-                        <div class="text-4xl">⏰</div>
-                    </div>
+                <div class="glass rounded-xl p-6">
+                    <p class="text-gray-400 text-sm">الحسابات النشطة</p>
+                    <p id="statActive" class="text-3xl font-black text-green-400 mt-2">0</p>
                 </div>
-                <div class="glass rounded-xl p-6 card-hover">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-400 text-sm">الرصيد المتاح</p>
-                            <p id="statCredits" class="text-3xl font-black gold-text mt-2">0</p>
-                        </div>
-                        <div class="text-4xl">💰</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- إحصائيات إضافية -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8 fade-in">
-                <div class="glass rounded-xl p-6 card-hover">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-400 text-sm">إجمالي البيانات المستهلكة</p>
-                            <p id="statData" class="text-2xl font-bold text-purple-400 mt-2">0 MB</p>
-                        </div>
-                        <div class="text-3xl"></div>
-                    </div>
-                </div>
-                <div class="glass rounded-xl p-6 card-hover">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-400 text-sm">عدد الإحالات</p>
-                            <p id="statReferrals" class="text-2xl font-bold text-pink-400 mt-2">0</p>
-                        </div>
-                        <div class="text-3xl">👥</div>
-                    </div>
-                </div>
-                <div class="glass rounded-xl p-6 card-hover">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-gray-400 text-sm">البطاقات غير المستخدمة</p>
-                            <p id="statCards" class="text-2xl font-bold text-cyan-400 mt-2">0</p>
-                        </div>
-                        <div class="text-3xl">🎫</div>
-                    </div>
+                <div class="glass rounded-xl p-6">
+                    <p class="text-gray-400 text-sm">المنتهية</p>
+                    <p id="statExpired" class="text-3xl font-black text-red-400 mt-2">0</p>
                 </div>
             </div>
 
             <!-- إنشاء حساب جديد -->
-            <div class="glass rounded-xl p-6 mb-8 fade-in">
-                <h2 class="text-2xl font-bold gold-text mb-6 flex items-center gap-2">
-                    <span>➕</span> إنشاء حساب جديد
-                </h2>
+            <div class="glass rounded-xl p-6 mb-8">
+                <h2 class="text-2xl font-bold gold-text mb-6"> إنشاء حساب جديد</h2>
                 
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
-                        <label class="block text-sm text-gray-400 mb-2">اسم المستخدم (اتركه فارغاً للتوليد العشوائي)</label>
-                        <input id="accUsername" type="text" placeholder="vipXXXXX" 
+                        <label class="block text-sm text-gray-400 mb-2">اسم المستخدم</label>
+                        <input id="accUsername" type="text" placeholder="اتركه فارغاً للتوليد العشوائي" 
                                class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
                     </div>
                     <div>
-                        <label class="block text-sm text-gray-400 mb-2">كلمة المرور (اتركها فارغة للتوليد العشوائي)</label>
-                        <input id="accPassword" type="text" placeholder="••••••••" 
+                        <label class="block text-sm text-gray-400 mb-2">كلمة المرور</label>
+                        <input id="accPassword" type="text" placeholder="اتركها فارغة للتوليد العشوائي" 
                                class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
                     </div>
                     <div>
                         <label class="block text-sm text-gray-400 mb-2">الباقة</label>
                         <select id="accType" class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
-                            <option value="1">🎁 تجريبي - يوم واحد (مجاني)</option>
-                            <option value="2">📅 أسبوعي - 7 أيام (10 رصيد)</option>
-                            <option value="3">📆 شهري - 30 يوم (30 رصيد)</option>
-                            <option value="4">🗓️ 3 أشهر - 90 يوم (80 رصيد)</option>
-                            <option value="5"> جيمنج أسبوعي (20 رصيد)</option>
-                            <option value="6"> جيمنج شهري (50 رصيد)</option>
+                            <option value="1">🎁 تجريبي - يوم واحد</option>
+                            <option value="2">📅 أسبوعي - 7 أيام</option>
+                            <option value="3">📆 شهري - 30 يوم</option>
+                            <option value="4">️ 3 أشهر - 90 يوم</option>
+                            <option value="5"> جيمنج أسبوعي</option>
+                            <option value="6">🎮 جيمنج شهري</option>
                         </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-2">كود الإحالة (اختياري)</label>
-                        <input id="referralCode" type="text" placeholder="أدخل كود الإحالة إن وجد" 
-                               class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
                     </div>
                 </div>
                 
                 <div class="flex items-center gap-4 mb-4">
                     <label class="flex items-center gap-2 cursor-pointer">
                         <input id="isRandom" type="checkbox" checked class="w-5 h-5 accent-yellow-500">
-                        <span class="text-gray-300">توليد عشوائي (vip + 5 أرقام)</span>
+                        <span class="text-gray-300">توليد عشوائي</span>
                     </label>
                 </div>
                 
-                <button onclick="createAccount()" class="btn-gold px-8 py-3 rounded-lg font-bold text-lg">
+                <button onclick="createAccount()" id="createBtn" class="btn-gold px-8 py-3 rounded-lg font-bold text-lg">
                     إنشاء الحساب
                 </button>
                 
                 <!-- نتيجة الإنشاء -->
-                <div id="createResult" class="mt-6 p-6 bg-green-500/10 border border-green-500 rounded-lg hidden fade-in">
-                    <div class="flex items-center gap-2 mb-4">
-                        <span class="text-3xl">✅</span>
-                        <p class="font-bold text-green-400 text-xl">تم إنشاء الحساب بنجاح!</p>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div id="createResult" class="mt-6 p-6 bg-green-500/10 border border-green-500 rounded-lg hidden">
+                    <p class="font-bold text-green-400 text-xl mb-4">✅ تم إنشاء الحساب بنجاح!</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="bg-gray-800/50 p-4 rounded-lg">
                             <p class="text-gray-400 text-sm">اسم المستخدم</p>
                             <p id="resultUsername" class="font-mono text-xl gold-text"></p>
@@ -229,71 +176,18 @@
                             <p id="resultExpiry" class="font-mono text-xl text-purple-400"></p>
                         </div>
                     </div>
-                    <div class="bg-gray-800/50 p-4 rounded-lg mb-4">
-                        <p class="text-gray-400 text-sm">كود الإحالة (شاركه مع أصدقائك)</p>
-                        <p id="resultReferral" class="font-mono text-xl text-pink-400"></p>
-                    </div>
-                    <div class="flex gap-2">
-                        <button onclick="copyCredentials()" class="btn-gold px-6 py-2 rounded-lg font-bold">
-                             نسخ البيانات
-                        </button>
-                        <button onclick="document.getElementById('createResult').classList.add('hidden')" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg transition">
-                            إغلاق
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- إنشاء بطاقات -->
-            <div class="glass rounded-xl p-6 mb-8 fade-in">
-                <h2 class="text-2xl font-bold gold-text mb-6 flex items-center gap-2">
-                    <span></span> إنشاء بطاقات الشحن
-                </h2>
-                
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-2">نوع البطاقة</label>
-                        <select id="cardPlan" class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
-                            <option value="1">🎁 تجريبي - يوم</option>
-                            <option value="2">📅 أسبوعي - 7 أيام</option>
-                            <option value="3"> شهري - 30 يوم</option>
-                            <option value="4">🗓️ 3 أشهر - 90 يوم</option>
-                            <option value="5">🎮 جيمنج أسبوعي</option>
-                            <option value="6">🎮 جيمنج شهري</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-2">عدد البطاقات (1-100)</label>
-                        <input id="cardCount" type="number" min="1" max="100" placeholder="10" 
-                               class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
-                    </div>
-                    <div class="flex items-end">
-                        <button onclick="generateCards()" class="w-full bg-purple-600 hover:bg-purple-700 px-6 py-3 rounded-lg font-bold transition">
-                            إنشاء البطاقات
-                        </button>
-                    </div>
-                </div>
-                
-                <div id="cardsResult" class="mt-6 hidden fade-in">
-                    <div class="flex items-center gap-2 mb-4">
-                        <span class="text-3xl">✅</span>
-                        <p class="font-bold text-green-400 text-xl">تم إنشاء البطاقات بنجاح!</p>
-                    </div>
-                    <div id="cardsList" class="bg-gray-900/50 p-4 rounded-lg font-mono text-sm max-h-96 overflow-y-auto space-y-2"></div>
-                    <button onclick="copyAllCards()" class="mt-4 btn-gold px-6 py-2 rounded-lg font-bold">
-                         نسخ كل البطاقات
+                    <button onclick="copyCredentials()" class="mt-4 btn-gold px-6 py-2 rounded-lg font-bold">
+                        📋 نسخ البيانات
                     </button>
                 </div>
             </div>
 
             <!-- قائمة الحسابات -->
-            <div class="glass rounded-xl p-6 fade-in">
+            <div class="glass rounded-xl p-6">
                 <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold gold-text flex items-center gap-2">
-                        <span>📋</span> قائمة الحسابات
-                    </h2>
-                    <button onclick="loadAccounts()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg transition flex items-center gap-2">
-                        <span>🔄</span> تحديث
+                    <h2 class="text-2xl font-bold gold-text">📋 الحسابات</h2>
+                    <button onclick="loadAccounts()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg transition">
+                        🔄 تحديث
                     </button>
                 </div>
                 
@@ -301,23 +195,16 @@
                     <table class="w-full text-right">
                         <thead class="bg-gray-800/50">
                             <tr>
-                                <th class="p-4 text-gray-400 font-bold">اسم المستخدم</th>
-                                <th class="p-4 text-gray-400 font-bold">الباقة</th>
-                                <th class="p-4 text-gray-400 font-bold">البيانات</th>
-                                <th class="p-4 text-gray-400 font-bold">الساعات</th>
-                                <th class="p-4 text-gray-400 font-bold">الجلسات</th>
-                                <th class="p-4 text-gray-400 font-bold">الانتهاء</th>
-                                <th class="p-4 text-gray-400 font-bold">الحالة</th>
+                                <th class="p-4 text-gray-400">المستخدم</th>
+                                <th class="p-4 text-gray-400">الباقة</th>
+                                <th class="p-4 text-gray-400">الانتهاء</th>
+                                <th class="p-4 text-gray-400">الحالة</th>
                             </tr>
                         </thead>
                         <tbody id="accountsList" class="divide-y divide-gray-700"></tbody>
                     </table>
                 </div>
-                
-                <div id="noAccounts" class="text-center py-12 text-gray-400 hidden">
-                    <p class="text-4xl mb-4">📭</p>
-                    <p>لا توجد حسابات حتى الآن</p>
-                </div>
+                <p id="noAccounts" class="text-center py-8 text-gray-400 hidden">لا توجد حسابات</p>
             </div>
         </div>
     </div>
@@ -326,12 +213,9 @@
         let token = localStorage.getItem('btc_token');
         let currentUser = null;
         let lastCreated = null;
-        let allCards = [];
 
-        // التحقق من تسجيل الدخول عند التحميل
-        if (token) {
-            verifyToken();
-        }
+        // التحقق عند التحميل
+        if (token) verifyToken();
 
         async function verifyToken() {
             try {
@@ -339,26 +223,32 @@
                     headers: { 'Authorization': `Bearer ${token}` }
                 });
                 const data = await res.json();
-                
                 if (data.success) {
                     currentUser = data.data;
                     showDashboard();
                 } else {
-                    logout();
+                    doLogout();
                 }
             } catch (error) {
-                console.error('Token verification failed:', error);
+                console.error(error);
             }
         }
 
-        async function login() {
+        async function doLogin() {
             const username = document.getElementById('username').value.trim();
             const password = document.getElementById('password').value;
+            const btn = document.getElementById('loginBtn');
+            const errorEl = document.getElementById('errorMsg');
 
             if (!username || !password) {
-                showLoginError('يرجى إدخال اسم المستخدم وكلمة المرور');
+                errorEl.textContent = 'يرجى إدخال البيانات';
+                errorEl.classList.remove('hidden');
                 return;
             }
+
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading"></span> جاري...';
+            errorEl.classList.add('hidden');
 
             try {
                 const res = await fetch('/api/login', {
@@ -366,41 +256,41 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username, password })
                 });
-                const data = await res.json();
 
-                if (data.success) {
+                const data = await res.json();
+                btn.disabled = false;
+                btn.textContent = 'تسجيل الدخول';
+
+                if (data.success && data.data) {
                     token = data.data.token;
                     localStorage.setItem('btc_token', token);
                     currentUser = data.data.user;
                     showDashboard();
                 } else {
-                    showLoginError(data.message);
+                    errorEl.textContent = data.message || 'بيانات خاطئة';
+                    errorEl.classList.remove('hidden');
                 }
             } catch (error) {
-                showLoginError('خطأ في الاتصال بالخادم');
+                btn.disabled = false;
+                btn.textContent = 'تسجيل الدخول';
+                errorEl.textContent = 'خطأ في الاتصال بالخادم';
+                errorEl.classList.remove('hidden');
             }
-        }
-
-        function showLoginError(message) {
-            const errorEl = document.getElementById('loginError');
-            errorEl.textContent = message;
-            errorEl.classList.remove('hidden');
-            setTimeout(() => errorEl.classList.add('hidden'), 5000);
         }
 
         function showDashboard() {
             document.getElementById('loginScreen').classList.add('hidden');
             document.getElementById('dashboard').classList.remove('hidden');
             
-            document.getElementById('userInfo').textContent = currentUser.username;
+            document.getElementById('userName').textContent = currentUser.username;
             document.getElementById('userRole').textContent = currentUser.role === 'admin' ? '👑 مدير النظام' : '👤 موزع';
-            document.getElementById('userCredits').textContent = `💰 ${currentUser.credits} رصيد`;
+            document.getElementById('userCredits').textContent = ` ${currentUser.credits || 0} رصيد`;
             
             loadStats();
             loadAccounts();
         }
 
-        function logout() {
+        function doLogout() {
             localStorage.removeItem('btc_token');
             token = null;
             currentUser = null;
@@ -413,18 +303,14 @@
                     headers: { 'Authorization': `Bearer ${token}` } 
                 });
                 const data = await res.json();
-                
                 if (data.success) {
-                    document.getElementById('statTotal').textContent = data.stats.total_accounts;
-                    document.getElementById('statActive').textContent = data.stats.active_accounts;
-                    document.getElementById('statExpired').textContent = data.stats.expired_accounts;
-                    document.getElementById('statCredits').textContent = data.stats.available_credits;
-                    document.getElementById('statData').textContent = formatMB(data.stats.total_data_used_mb);
-                    document.getElementById('statReferrals').textContent = data.stats.referral_count;
-                    document.getElementById('statCards').textContent = data.stats.unused_cards;
+                    document.getElementById('statTotal').textContent = data.stats.total_accounts || 0;
+                    document.getElementById('statActive').textContent = data.stats.active_accounts || 0;
+                    document.getElementById('statExpired').textContent = data.stats.expired_accounts || 0;
+                    document.getElementById('statCredits').textContent = data.stats.available_credits || 0;
                 }
             } catch (error) {
-                console.error('Failed to load stats:', error);
+                console.error(error);
             }
         }
 
@@ -433,7 +319,10 @@
             const password = document.getElementById('accPassword').value.trim();
             const plan_id = parseInt(document.getElementById('accType').value);
             const is_random = document.getElementById('isRandom').checked;
-            const referral_code = document.getElementById('referralCode').value.trim();
+            const btn = document.getElementById('createBtn');
+
+            btn.disabled = true;
+            btn.textContent = 'جاري الإنشاء...';
 
             try {
                 const res = await fetch('/api/account/create', {
@@ -446,97 +335,37 @@
                         username: username || null, 
                         password: password || null, 
                         plan_id, 
-                        is_random,
-                        referral_code: referral_code || null
+                        is_random 
                     })
                 });
 
                 const data = await res.json();
-                
+                btn.disabled = false;
+                btn.textContent = 'إنشاء الحساب';
+
                 if (data.success) {
                     lastCreated = data.data;
                     document.getElementById('resultUsername').textContent = data.data.username;
                     document.getElementById('resultPassword').textContent = data.data.password;
                     document.getElementById('resultPlan').textContent = data.data.plan;
                     document.getElementById('resultExpiry').textContent = new Date(data.data.expiry_date).toLocaleDateString('ar-EG');
-                    document.getElementById('resultReferral').textContent = data.data.referral_code || 'غير متوفر';
                     document.getElementById('createResult').classList.remove('hidden');
-                    
-                    // تحديث الإحصائيات والقائمة
                     loadStats();
                     loadAccounts();
-                    
-                    // تفريغ الحقول
-                    document.getElementById('accUsername').value = '';
-                    document.getElementById('accPassword').value = '';
-                    document.getElementById('referralCode').value = '';
-                    
-                    // التمرير إلى النتيجة
-                    document.getElementById('createResult').scrollIntoView({ behavior: 'smooth' });
                 } else {
                     alert('❌ ' + data.message);
                 }
             } catch (error) {
-                alert(' خطأ في الاتصال بالخادم');
+                btn.disabled = false;
+                btn.textContent = 'إنشاء الحساب';
+                alert('خطأ في الاتصال');
             }
         }
 
         function copyCredentials() {
             if (lastCreated) {
-                const text = `B.T.C VPN - حساب جديد\n\n اسم المستخدم: ${lastCreated.username}\n🔑 كلمة المرور: ${lastCreated.password}\n📦 الباقة: ${lastCreated.plan}\n⏰ تاريخ الانتهاء: ${lastCreated.expiry_date}\n🎁 كود الإحالة: ${lastCreated.referral_code || 'غير متوفر'}\n\nشكراً لاستخدامك B.T.C VPN!`;
-                navigator.clipboard.writeText(text).then(() => {
-                    alert('✅ تم نسخ البيانات بنجاح!');
-                });
-            }
-        }
-
-        async function generateCards() {
-            const plan_id = parseInt(document.getElementById('cardPlan').value);
-            const count = parseInt(document.getElementById('cardCount').value);
-
-            if (!count || count < 1 || count > 100) {
-                alert('❌ عدد البطاقات يجب أن يكون بين 1 و 100');
-                return;
-            }
-
-            try {
-                const res = await fetch('/api/cards/generate', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ plan_id, count })
-                });
-
-                const data = await res.json();
-                
-                if (data.success) {
-                    allCards = data.data.cards;
-                    document.getElementById('cardsList').innerHTML = allCards.map((code, index) => 
-                        `<div class="p-3 bg-gray-800/50 rounded-lg flex justify-between items-center">
-                            <span class="font-mono text-yellow-400">${code}</span>
-                            <span class="text-gray-400 text-sm">#${index + 1}</span>
-                        </div>`
-                    ).join('');
-                    document.getElementById('cardsResult').classList.remove('hidden');
-                    
-                    loadStats();
-                    document.getElementById('cardsResult').scrollIntoView({ behavior: 'smooth' });
-                } else {
-                    alert('❌ ' + data.message);
-                }
-            } catch (error) {
-                alert('❌ خطأ في الاتصال بالخادم');
-            }
-        }
-
-        function copyAllCards() {
-            if (allCards.length > 0) {
-                const text = `B.T.C VPN - بطاقات شحن\n\n${allCards.map((code, index) => `${index + 1}. ${code}`).join('\n')}\n\nإجمالي: ${allCards.length} بطاقة`;
-                navigator.clipboard.writeText(text).then(() => {
-                    alert('✅ تم نسخ كل البطاقات!');
-                });
+                const text = `B.T.C VPN\nالمستخدم: ${lastCreated.username}\nكلمة المرور: ${lastCreated.password}\nالباقة: ${lastCreated.plan}\nالانتهاء: ${lastCreated.expiry_date}`;
+                navigator.clipboard.writeText(text).then(() => alert('✅ تم النسخ'));
             }
         }
 
@@ -546,56 +375,40 @@
                     headers: { 'Authorization': `Bearer ${token}` } 
                 });
                 const data = await res.json();
-                
                 const tbody = document.getElementById('accountsList');
                 const noAccounts = document.getElementById('noAccounts');
                 tbody.innerHTML = '';
-                
-                if (data.accounts.length === 0) {
+
+                if (!data.accounts || data.accounts.length === 0) {
                     noAccounts.classList.remove('hidden');
                     return;
                 }
-                
+
                 noAccounts.classList.add('hidden');
-                
                 data.accounts.forEach(acc => {
                     const isExpired = new Date(acc.expiry_date) < new Date();
                     const status = isExpired ? 'منتهي' : 'نشط';
                     const statusColor = isExpired ? 'text-red-400 bg-red-500/10' : 'text-green-400 bg-green-500/10';
-                    const daysLeft = Math.ceil((new Date(acc.expiry_date) - new Date()) / (1000 * 60 * 60 * 24));
-                    const daysText = !isExpired && daysLeft <= 3 ? ` (${daysLeft} يوم)` : '';
                     
                     tbody.innerHTML += `
-                        <tr class="hover:bg-gray-800/30 transition">
-                            <td class="p-4 font-mono text-yellow-400 font-bold">${acc.username}</td>
-                            <td class="p-4 text-blue-400">${acc.plan_name}</td>
-                            <td class="p-4 text-purple-400">${formatMB(acc.data_used_mb)}</td>
-                            <td class="p-4 text-cyan-400">${acc.session_hours.toFixed(1)}h</td>
-                            <td class="p-4 text-pink-400">${acc.total_sessions}</td>
+                        <tr class="hover:bg-gray-800/30">
+                            <td class="p-4 font-mono text-yellow-400">${acc.username}</td>
+                            <td class="p-4 text-blue-400">${acc.plan_name || 'غير محدد'}</td>
                             <td class="p-4 text-gray-300">${new Date(acc.expiry_date).toLocaleDateString('ar-EG')}</td>
-                            <td class="p-4">
-                                <span class="px-3 py-1 rounded-full text-sm font-bold ${statusColor}">
-                                    ${status}${daysText}
-                                </span>
-                            </td>
+                            <td class="p-4"><span class="px-3 py-1 rounded-full text-sm ${statusColor}">${status}</span></td>
                         </tr>
                     `;
                 });
             } catch (error) {
-                console.error('Failed to load accounts:', error);
+                console.error(error);
             }
         }
 
-        function formatMB(mb) {
-            if (mb < 1024) return `${Math.round(mb)} MB`;
-            return `${(mb / 1024).toFixed(2)} GB`;
-        }
-
-        // Enter key support
-        document.addEventListener('keypress', function(e) {
+        // Enter key
+        document.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
                 if (!document.getElementById('loginScreen').classList.contains('hidden')) {
-                    login();
+                    doLogin();
                 }
             }
         });
