@@ -23,6 +23,14 @@ app.use(express.urlencoded({ extended: true }));
 // ============================================
 // 2. قاعدة البيانات SQLite
 // ============================================
+// حذف قاعدة البيانات إذا كان المتغير مفعلاً
+if (process.env.RESET_DB_ON_START === 'true') {
+    const fs = require('fs');
+    if (fs.existsSync('btc_vpn.db')) {
+        fs.unlinkSync('btc_vpn.db');
+        console.log('🗑️ تم حذف قاعدة البيانات القديمة');
+    }
+}
 const db = new Database('btc_vpn.db');
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
