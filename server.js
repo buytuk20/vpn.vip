@@ -31,6 +31,7 @@ if (process.env.RESET_DB_ON_START === 'true') {
         console.log('🗑️ تم حذف قاعدة البيانات القديمة');
     }
 }
+
 const db = new Database('btc_vpn.db');
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
