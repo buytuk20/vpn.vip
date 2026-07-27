@@ -20,8 +20,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'btc_vpn_ultra_secret_2026_change_i
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
-
+app.use(express.static(__dirname));
 // ============================================
 // 2. قاعدة البيانات SQLite
 // ============================================
