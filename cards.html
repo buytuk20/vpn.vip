@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B.T.C VPN - تفعيل بطاقة الشحن</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+        * { font-family: 'Cairo', sans-serif; }
+        body { 
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+        }
+        .glass { 
+            background: rgba(255, 255, 255, 0.05); 
+            backdrop-filter: blur(10px); 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
+        .gold-text { color: #FFD700; }
+        .gold-bg { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
+        .btn-gold { 
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); 
+            color: #000; 
+            transition: all 0.3s; 
+        }
+        .btn-gold:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3); 
+        }
+        .btn-gold:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(20px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .card-input {
+            letter-spacing: 2px;
+            font-family: monospace;
+            text-transform: uppercase;
+        }
+        .success-box {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .error-box {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,215,0,0.3);
+            border-radius: 50%;
+            border-top-color: #FFD700;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <!-- الهيدر -->
+        <div class="text-center mb-8 fade-in">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-full gold-bg flex items-center justify-center text-4xl"></div>
+            <h1 class="text-4xl font-black gold-text">B.T.C VPN</h1>
+            <p class="text-gray-400 mt-2">تفعيل بطاقة الشحن</p>
+        </div>
+
+        <!-- نموذج تفعيل البطاقة -->
+        <div class="glass rounded-2xl p-8 fade-in">
+            <div class="mb-6">
+                <h2 class="text-2xl font-bold text-white mb-2">أدخل بيانات الحساب والبطاقة</h2>
+                <p class="text-gray-400 text-sm">سيتم إضافة مدة البطاقة إلى حسابك الحالي</p>
+            </div>
+
+            <form id="cardForm" class="space-y-5">
+                <!-- اسم المستخدم -->
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">اسم المستخدم</label>
+                    <input id="username" type="text" required
+                           placeholder="مثال: vip53091" 
+                           class="w-full p-4 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none transition text-lg">
+                </div>
+
+                <!-- كلمة المرور -->
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">كلمة المرور</label>
+                    <input id="password" type="password" required
+                           placeholder="••••••••" 
+                           class="w-full p-4 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none transition text-lg">
+                </div>
+
+                <!-- كود البطاقة -->
+                <div>
+                    <label class="block text-sm text-gray-400 mb-2">كود البطاقة</label>
+                    <input id="cardCode" type="text" required
+                           placeholder="BTC-XXXX-XXXX-XXXX" 
+                           class="card-input w-full p-4 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none transition text-lg text-center">
+                    <p class="text-xs text-gray-500 mt-2">💡 الكود غير حساس لحالة الأحرف (A = a)</p>
+                </div>
+
+                <!-- زر التفعيل -->
+                <button type="submit" id="submitBtn" class="w-full btn-gold p-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2">
+                    <span id="btnText">تفعيل البطاقة</span>
+                    <span id="btnLoading" class="loading hidden"></span>
+                </button>
+            </form>
+
+            <!-- رسالة النجاح -->
+            <div id="successMsg" class="success-box rounded-lg p-6 mt-6 hidden fade-in">
+                <div class="flex items-center gap-3 mb-4">
+                    <span class="text-4xl">✅</span>
+                    <div>
+                        <h3 class="text-xl font-bold text-green-400">تم التفعيل بنجاح!</h3>
+                        <p class="text-gray-300 text-sm">تم إضافة مدة البطاقة إلى حسابك</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+                    <div class="bg-gray-800/50 p-3 rounded-lg">
+                        <p class="text-gray-400 text-xs">الأيام المضافة</p>
+                        <p id="addedDays" class="text-xl font-bold text-yellow-400">0 يوم</p>
+                    </div>
+                    <div class="bg-gray-800/50 p-3 rounded-lg">
+                        <p class="text-gray-400 text-xs">تاريخ الانتهاء الجديد</p>
+                        <p id="newExpiry" class="text-xl font-bold text-green-400">-</p>
+                    </div>
+                </div>
+                <button onclick="resetForm()" class="mt-4 w-full bg-gray-700 hover:bg-gray-600 p-3 rounded-lg transition">
+                    تفعيل بطاقة أخرى
+                </button>
+            </div>
+
+            <!-- رسالة الخطأ -->
+            <div id="errorMsg" class="error-box rounded-lg p-4 mt-6 hidden fade-in">
+                <div class="flex items-center gap-3">
+                    <span class="text-3xl">❌</span>
+                    <p id="errorText" class="text-red-400"></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- معلومات إضافية -->
+        <div class="glass rounded-2xl p-6 mt-6 fade-in">
+            <h3 class="text-lg font-bold gold-text mb-4 flex items-center gap-2">
+                <span>ℹ️</span> كيفية استخدام البطاقة
+            </h3>
+            <div class="space-y-3 text-sm text-gray-300">
+                <div class="flex items-start gap-3">
+                    <span class="text-yellow-400 font-bold">1.</span>
+                    <p>احصل على بطاقة الشحن من الموزع المعتمد</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="text-yellow-400 font-bold">2.</span>
+                    <p>أدخل اسم المستخدم وكلمة المرور الخاصة بحسابك</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="text-yellow-400 font-bold">3.</span>
+                    <p>أدخل كود البطاقة واضغط "تفعيل البطاقة"</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="text-yellow-400 font-bold">4.</span>
+                    <p>سيتم إضافة مدة البطاقة فوراً إلى حسابك</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- الباقات المتاحة -->
+        <div class="glass rounded-2xl p-6 mt-6 fade-in">
+            <h3 class="text-lg font-bold gold-text mb-4 flex items-center gap-2">
+                <span>📦</span> أنواع البطاقات المتاحة
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div class="bg-gray-800/50 p-4 rounded-lg text-center">
+                    <div class="text-2xl mb-1">🎁</div>
+                    <p class="text-sm font-bold text-white">تجريبي</p>
+                    <p class="text-xs text-gray-400">يوم واحد</p>
+                </div>
+                <div class="bg-gray-800/50 p-4 rounded-lg text-center">
+                    <div class="text-2xl mb-1"></div>
+                    <p class="text-sm font-bold text-white">أسبوعي</p>
+                    <p class="text-xs text-gray-400">7 أيام</p>
+                </div>
+                <div class="bg-gray-800/50 p-4 rounded-lg text-center">
+                    <div class="text-2xl mb-1">📆</div>
+                    <p class="text-sm font-bold text-white">شهري</p>
+                    <p class="text-xs text-gray-400">30 يوم</p>
+                </div>
+                <div class="bg-gray-800/50 p-4 rounded-lg text-center">
+                    <div class="text-2xl mb-1">🗓️</div>
+                    <p class="text-sm font-bold text-white">3 أشهر</p>
+                    <p class="text-xs text-gray-400">90 يوم</p>
+                </div>
+                <div class="bg-gray-800/50 p-4 rounded-lg text-center">
+                    <div class="text-2xl mb-1">🎮</div>
+                    <p class="text-sm font-bold text-white">جيمنج</p>
+                    <p class="text-xs text-gray-400">أسبوع/شهر</p>
+                </div>
+                <div class="bg-gray-800/50 p-4 rounded-lg text-center">
+                    <div class="text-2xl mb-1">⭐</div>
+                    <p class="text-sm font-bold text-white">مفتوحة</p>
+                    <p class="text-xs text-gray-400">حسب الطلب</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- الفوتر -->
+        <div class="text-center mt-8 text-gray-500 text-sm fade-in">
+            <p>B.T.C VPN © 2026 - جميع الحقوق محفوظة</p>
+            <p class="mt-2">
+                <a href="/" class="text-yellow-400 hover:text-yellow-300 transition">العودة للوحة التحكم</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        const form = document.getElementById('cardForm');
+        const submitBtn = document.getElementById('submitBtn');
+        const btnText = document.getElementById('btnText');
+        const btnLoading = document.getElementById('btnLoading');
+        const successMsg = document.getElementById('successMsg');
+        const errorMsg = document.getElementById('errorMsg');
+        const errorText = document.getElementById('errorText');
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const cardCode = document.getElementById('cardCode').value.trim();
+
+            // التحقق من المدخلات
+            if (!username || !password || !cardCode) {
+                showError('يرجى ملء جميع الحقول');
+                return;
+            }
+
+            // التحقق من صيغة كود البطاقة
+            if (!cardCode.match(/^BTC-[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/i)) {
+                showError('صيغة كود البطاقة غير صحيحة. الصيغة الصحيحة: BTC-XXXX-XXXX-XXXX');
+                return;
+            }
+
+            // تعطيل الزر وإظهار التحميل
+            setLoading(true);
+            hideMessages();
+
+            try {
+                const res = await fetch('/api/card/use', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        card_code: cardCode, 
+                        username, 
+                        password 
+                    })
+                });
+
+                const data = await res.json();
+
+                if (data.success) {
+                    // عرض رسالة النجاح
+                    document.getElementById('addedDays').textContent = `${data.data.added_days} يوم`;
+                    document.getElementById('newExpiry').textContent = new Date(data.data.new_expiry).toLocaleDateString('ar-EG', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                    });
+                    
+                    successMsg.classList.remove('hidden');
+                    form.classList.add('hidden');
+                    
+                    // التمرير إلى رسالة النجاح
+                    successMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else {
+                    showError(data.message || 'حدث خطأ غير معروف');
+                }
+            } catch (error) {
+                showError('خطأ في الاتصال بالخادم. تأكد من اتصالك بالإنترنت.');
+                console.error('Card activation error:', error);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        function setLoading(loading) {
+            if (loading) {
+                submitBtn.disabled = true;
+                btnText.textContent = 'جاري التفعيل...';
+                btnLoading.classList.remove('hidden');
+            } else {
+                submitBtn.disabled = false;
+                btnText.textContent = 'تفعيل البطاقة';
+                btnLoading.classList.add('hidden');
+            }
+        }
+
+        function showError(message) {
+            errorText.textContent = message;
+            errorMsg.classList.remove('hidden');
+            errorMsg.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+
+        function hideMessages() {
+            successMsg.classList.add('hidden');
+            errorMsg.classList.add('hidden');
+        }
+
+        function resetForm() {
+            form.reset();
+            form.classList.remove('hidden');
+            successMsg.classList.add('hidden');
+            hideMessages();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // تحويل كود البطاقة إلى أحرف كبيرة تلقائياً
+        document.getElementById('cardCode').addEventListener('input', function(e) {
+            this.value = this.value.toUpperCase();
+        });
+
+        // دعم Enter للتنقل بين الحقول
+        document.querySelectorAll('input').forEach((input, index, inputs) => {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (index < inputs.length - 1) {
+                        inputs[index + 1].focus();
+                    } else {
+                        form.dispatchEvent(new Event('submit'));
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

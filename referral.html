@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>B.T.C VPN - نظام الإحالة</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
+        * { font-family: 'Cairo', sans-serif; }
+        body { 
+            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
+            min-height: 100vh;
+        }
+        .glass { 
+            background: rgba(255, 255, 255, 0.05); 
+            backdrop-filter: blur(10px); 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
+        .gold-text { color: #FFD700; }
+        .gold-bg { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
+        .btn-gold { 
+            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); 
+            color: #000; 
+            transition: all 0.3s; 
+        }
+        .btn-gold:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3); 
+        }
+        .fade-in { animation: fadeIn 0.5s ease-in; }
+        @keyframes fadeIn { 
+            from { opacity: 0; transform: translateY(20px); } 
+            to { opacity: 1; transform: translateY(0); } 
+        }
+        .referral-code {
+            letter-spacing: 5px;
+            font-family: monospace;
+            text-transform: uppercase;
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+        .success-box {
+            background: rgba(34, 197, 94, 0.1);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+        .error-box {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255,215,0,0.3);
+            border-radius: 50%;
+            border-top-color: #FFD700;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .referral-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 215, 0, 0.1);
+        }
+        .benefits-list {
+            list-style: none;
+            padding: 0;
+        }
+        .benefits-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            align-items: flex-start;
+        }
+        .benefits-list li:last-child {
+            border-bottom: none;
+        }
+        .benefits-list li:before {
+            content: "✓";
+            color: #FFD700;
+            font-weight: bold;
+            margin-left: 10px;
+            margin-right: 15px;
+            font-size: 1.2rem;
+        }
+    </style>
+</head>
+<body class="text-white">
+
+    <div class="container mx-auto px-4 py-8 max-w-2xl">
+        <!-- الهيدر -->
+        <div class="text-center mb-8 fade-in">
+            <div class="w-20 h-20 mx-auto mb-4 rounded-full gold-bg flex items-center justify-center text-4xl">👥</div>
+            <h1 class="text-4xl font-black gold-text">B.T.C VPN</h1>
+            <p class="text-gray-400 mt-2">نظام الإحالة</p>
+        </div>
+
+        <!-- شاشة تسجيل الدخول -->
+        <div id="loginScreen" class="fade-in">
+            <div class="glass rounded-2xl p-8">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-bold text-white mb-2">تسجيل الدخول لعرض كود الإحالة</h2>
+                    <p class="text-gray-400 text-sm">أدخل بيانات حسابك لعرض كود الإحالة</p>
+                </div>
+
+                <form id="loginForm" class="space-y-5">
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">اسم المستخدم</label>
+                        <input id="username" type="text" required
+                               placeholder="مثال: vip53091" 
+                               class="w-full p-4 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none transition text-lg">
+                    </div>
+
+                    <div>
+                        <label class="block text-sm text-gray-400 mb-2">كلمة المرور</label>
+                        <input id="password" type="password" required
+                               placeholder="••••••••" 
+                               class="w-full p-4 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none transition text-lg">
+                    </div>
+
+                    <button type="submit" id="loginBtn" class="w-full btn-gold p-4 rounded-lg font-bold text-lg flex items-center justify-center gap-2">
+                        <span id="loginBtnText">تسجيل الدخول</span>
+                        <span id="loginLoading" class="loading hidden"></span>
+                    </button>
+                </form>
+
+                <div id="loginErrorMsg" class="error-box rounded-lg p-4 mt-6 hidden">
+                    <div class="flex items-center gap-3">
+                        <span class="text-3xl">❌</span>
+                        <p id="loginErrorText" class="text-red-400"></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- شاشة كود الإحالة -->
+        <div id="referralScreen" class="hidden fade-in">
+            <div class="glass rounded-2xl p-8">
+                <div class="mb-6 text-center">
+                    <h2 class="text-2xl font-bold text-white mb-2">كود الإحالة</h2>
+                    <p class="text-gray-400 text-sm">شارك هذا الكود مع أصدقائك لاستلام مكافآت</p>
+                </div>
+
+                <!-- كود الإحالة -->
+                <div class="text-center mb-6">
+                    <div class="referral-code bg-gray-800/50 p-5 rounded-xl mb-4 gold-text" id="referralCode">
+                        جاري التحميل...
+                    </div>
+                    <button onclick="copyReferralCode()" id="copyBtn" class="btn-gold px-6 py-3 rounded-lg font-bold">
+                        <span id="copyBtnText">📋 نسخ الكود</span>
+                        <span id="copyLoading" class="loading hidden ml-2"></span>
+                    </button>
+                </div>
+
+                <!-- مكافآت الإحالة -->
+                <div class="bg-gray-800/30 rounded-xl p-6 mb-6">
+                    <h3 class="text-xl font-bold gold-text mb-4 flex items-center gap-2">
+                        <span>🎁</span> مكافآت الإحالة
+                    </h3>
+                    <ul class="benefits-list">
+                        <li>عند دعوة صديق، تحصل على <span class="font-bold text-yellow-400">يوم إضافي</span> مجاناً</li>
+                        <li>الصديق يحصل على <span class="font-bold text-yellow-400">31 يوم</span> (30 + 1 بونص)</li>
+                        <li>كل <span class="font-bold text-yellow-400">5 إحالات</span> تحصل على <span class="font-bold text-yellow-400">7 أيام</span> إضافية</li>
+                        <li>المكافآت تُحسب تلقائياً دون انتظار</li>
+                    </ul>
+                </div>
+
+                <!-- إحصائيات الإحالة -->
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="referral-card p-4 rounded-lg text-center">
+                        <p class="text-gray-400 text-sm mb-1">الإحالات الناجحة</p>
+                        <p id="referralsCount" class="text-3xl font-bold text-blue-400">0</p>
+                    </div>
+                    <div class="referral-card p-4 rounded-lg text-center">
+                        <p class="text-gray-400 text-sm mb-1">الأيام المكتسبة</p>
+                        <p id="bonusDays" class="text-3xl font-bold text-green-400">0</p>
+                    </div>
+                </div>
+
+                <!-- شرح الإحالة -->
+                <div class="bg-gray-800/30 rounded-xl p-6">
+                    <h3 class="text-xl font-bold gold-text mb-4 flex items-center gap-2">
+                        <span>ℹ️</span> كيفية استخدام الإحالة
+                    </h3>
+                    <div class="space-y-3 text-sm text-gray-300">
+                        <div class="flex items-start gap-3">
+                            <span class="text-yellow-400 font-bold">1.</span>
+                            <p>شارك كود الإحالة مع أصدقائك</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-yellow-400 font-bold">2.</span>
+                            <p>عندما يسجل صديق جديد باستخدام الكود، يحصل على 31 يوم</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-yellow-400 font-bold">3.</span>
+                            <p>تحصل أنت على يوم إضافي فوراً</p>
+                        </div>
+                        <div class="flex items-start gap-3">
+                            <span class="text-yellow-400 font-bold">4.</span>
+                            <p>كل 5 إحالات تحصل على 7 أيام إضافية</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- زر تسجيل الخروج -->
+                <div class="mt-6 text-center">
+                    <button onclick="logout()" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg transition text-sm">
+                        🚪 تسجيل الخروج
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- نصائح الإحالة -->
+        <div class="glass rounded-2xl p-6 mt-6 fade-in">
+            <h3 class="text-lg font-bold gold-text mb-4 flex items-center gap-2">
+                <span>💡</span> نصائح لزيادة الإحالات
+            </h3>
+            <div class="space-y-3 text-sm text-gray-300">
+                <div class="flex items-start gap-3">
+                    <span class="text-yellow-400">•</span>
+                    <p>شارك كود الإحالة مع الأصدقاء عبر وسائل التواصل الاجتماعي</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="text-yellow-400">•</span>
+                    <p>استخدم صيغة جذابة: "احصل على 31 يوم مجاناً مع B.T.C VPN"</p>
+                </div>
+                <div class="flex items-start gap-3">
+                    <span class="text-yellow-400">•</span>
+                    <p>أضف رابط تحميل التطبيق مع الكود</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- الفوتر -->
+        <div class="text-center mt-8 text-gray-500 text-sm fade-in">
+            <p>B.T.C VPN © 2026 - جميع الحقوق محفوظة</p>
+            <p class="mt-2">
+                <a href="/" class="text-yellow-400 hover:text-yellow-300 transition">العودة للوحة التحكم</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        let token = localStorage.getItem('btc_referral_token');
+        let referralData = null;
+
+        // التحقق من تسجيل الدخول عند التحميل
+        if (token) {
+            showReferralScreen();
+        }
+
+        // تسجيل الدخول
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            
+            if (!username || !password) {
+                showError('يرجى إدخال اسم المستخدم وكلمة المرور');
+                return;
+            }
+
+            setLoading(true);
+            hideError();
+
+            try {
+                const res = await fetch(`/api/user/login?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`);
+                const data = await res.json();
+                
+                if (data.success) {
+                    token = data.data.token;
+                    localStorage.setItem('btc_referral_token', token);
+                    showReferralScreen();
+                } else {
+                    showError(data.message || 'بيانات خاطئة');
+                }
+            } catch (error) {
+                showError('خطأ في الاتصال بالخادم. تأكد من اتصالك بالإنترنت.');
+                console.error('Referral login error:', error);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        // عرض شاشة كود الإحالة
+        async function showReferralScreen() {
+            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('referralScreen').classList.remove('hidden');
+
+            try {
+                const res = await fetch('/api/me', {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    referralData = data.data;
+                    
+                    // عرض كود الإحالة
+                    document.getElementById('referralCode').textContent = referralData.referral_code || 'غير متوفر';
+                    
+                    // عرض الإحصائيات
+                    document.getElementById('referralsCount').textContent = referralData.referral_bonus_days || 0;
+                    document.getElementById('bonusDays').textContent = referralData.referral_bonus_days || 0;
+                } else {
+                    // انتهت الجلسة
+                    logout();
+                }
+            } catch (error) {
+                showError('خطأ في جلب بيانات الإحالة');
+                console.error('Referral data error:', error);
+            }
+        }
+
+        // نسخ كود الإحالة
+        function copyReferralCode() {
+            if (!referralData || !referralData.referral_code) {
+                alert('لم يتم تحميل الكود بعد. انتظر قليلاً');
+                return;
+            }
+            
+            const code = referralData.referral_code;
+            const text = `🔐 B.T.C VPN - كود الإحالة\n\n📋 كود الإحالة: ${code}\n\n🎁 المكافآت:\n• أنت تحصل على: يوم إضافي مجاناً\n• صديقك يحصل على: 31 يوم (30 + 1 بونص)\n\n✨ احصل على 31 يوم مجاناً مع B.T.C VPN!\n\nB.T.C VPN © 2026`;
+            
+            const copyBtn = document.getElementById('copyBtn');
+            const copyBtnText = document.getElementById('copyBtnText');
+            const copyLoading = document.getElementById('copyLoading');
+
+            copyBtn.disabled = true;
+            copyBtnText.textContent = 'جاري النسخ...';
+            copyLoading.classList.remove('hidden');
+            
+            navigator.clipboard.writeText(text).then(() => {
+                copyBtnText.textContent = '✅ تم النسخ!';
+                copyBtn.disabled = false;
+                copyLoading.classList.add('hidden');
+                
+                setTimeout(() => {
+                    copyBtnText.textContent = '📋 نسخ الكود';
+                }, 2000);
+            }).catch(err => {
+                copyBtnText.textContent = '❌ فشل النسخ';
+                copyBtn.disabled = false;
+                copyLoading.classList.add('hidden');
+                console.error('Copy error:', err);
+            });
+        }
+
+        // تسجيل الخروج
+        function logout() {
+            localStorage.removeItem('btc_referral_token');
+            token = null;
+            referralData = null;
+            document.getElementById('referralScreen').classList.add('hidden');
+            document.getElementById('loginScreen').classList.remove('hidden');
+            document.getElementById('loginForm').reset();
+        }
+
+        // وظائف مساعدة
+        function setLoading(loading) {
+            const loginBtn = document.getElementById('loginBtn');
+            const loginBtnText = document.getElementById('loginBtnText');
+            const loginLoading = document.getElementById('loginLoading');
+
+            if (loading) {
+                loginBtn.disabled = true;
+                loginBtnText.textContent = 'جاري التحميل...';
+                loginLoading.classList.remove('hidden');
+            } else {
+                loginBtn.disabled = false;
+                loginBtnText.textContent = 'تسجيل الدخول';
+                loginLoading.classList.add('hidden');
+            }
+        }
+
+        function showError(message) {
+            document.getElementById('loginErrorText').textContent = message;
+            document.getElementById('loginErrorMsg').classList.remove('hidden');
+        }
+
+        function hideError() {
+            document.getElementById('loginErrorMsg').classList.add('hidden');
+        }
+
+        // دعم Enter للتنقل بين الحقول
+        document.querySelectorAll('input').forEach((input, index, inputs) => {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (index < inputs.length - 1) {
+                        inputs[index + 1].focus();
+                    } else {
+                        document.getElementById('loginForm').dispatchEvent(new Event('submit'));
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
