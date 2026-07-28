@@ -1,417 +1,579 @@
 <!DOCTYPE html>
 <html dir="rtl" lang="ar">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>B.T.C VPN - لوحة التحكم</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;900&display=swap');
-        * { font-family: 'Cairo', sans-serif; }
-        body { 
-            background: linear-gradient(135deg, #0f0c29 0%, #302b63 50%, #24243e 100%);
-            min-height: 100vh;
-        }
-        .glass { 
-            background: rgba(255, 255, 255, 0.05); 
-            backdrop-filter: blur(10px); 
-            border: 1px solid rgba(255, 255, 255, 0.1); 
-        }
-        .gold-text { color: #FFD700; }
-        .gold-bg { background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); }
-        .btn-gold { 
-            background: linear-gradient(135deg, #FFD700 0%, #FFA500 100%); 
-            color: #000; 
-            transition: all 0.3s; 
-        }
-        .btn-gold:hover { 
-            transform: translateY(-2px); 
-            box-shadow: 0 10px 20px rgba(255, 215, 0, 0.3); 
-        }
-        .loading {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(0,0,0,0.2);
-            border-top-color: #000;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        @keyframes spin { to { transform: rotate(360deg); } }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B.T.C VPN — وحدة التحكم</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#08080c; --bg2:#0d0d13; --surf:#121219; --surf2:#17171f; --surf3:#1d1d27;
+  --gold:#e0b53c; --gold-b:#ffd86b; --gold-d:#7a651c;
+  --cream:#ece7da; --mut:#837f74; --mut2:#56534c;
+  --line:rgba(224,181,60,.14); --line2:rgba(255,255,255,.06);
+  --green:#5fd38a; --red:#f0736e; --blue:#6fb0f5; --violet:#b58cf0;
+  --r:16px; --r2:22px;
+  --shadow:0 24px 60px -20px rgba(0,0,0,.8);
+  --glow:0 0 0 1px var(--line), 0 18px 50px -24px rgba(224,181,60,.45);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:'IBM Plex Sans Arabic',sans-serif;
+  color:var(--cream); background:var(--bg);
+  -webkit-font-smoothing:antialiased; overflow-x:hidden;
+}
+/* ===== خلفية متعددة الطبقات ===== */
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(900px 600px at 88% -8%, rgba(224,181,60,.16), transparent 60%),
+    radial-gradient(700px 500px at -6% 108%, rgba(111,176,245,.10), transparent 60%),
+    linear-gradient(180deg,#0a0a10,#070709 70%);
+}
+body::after{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.5;mix-blend-mode:overlay;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+.grid-veil{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.35;
+  background-image:linear-gradient(var(--line2) 1px,transparent 1px),linear-gradient(90deg,var(--line2) 1px,transparent 1px);
+  background-size:46px 46px;mask-image:radial-gradient(circle at 50% 30%,#000,transparent 78%)}
+.mono{font-family:'JetBrains Mono',monospace}
+.disp{font-family:'Cairo',sans-serif}
+
+/* ===== الهيكل ===== */
+.app{position:relative;z-index:1;display:grid;grid-template-columns:268px 1fr;min-height:100vh}
+
+/* ===== الشريط الجانبي ===== */
+.side{
+  position:sticky;top:0;height:100vh;display:flex;flex-direction:column;
+  padding:26px 18px;border-inline-start:1px solid var(--line);
+  background:linear-gradient(180deg,rgba(18,18,25,.7),rgba(8,8,12,.4));backdrop-filter:blur(8px);
+}
+.brand{display:flex;align-items:center;gap:13px;padding:6px 8px 22px}
+.mark{
+  width:46px;height:46px;border-radius:13px;flex:none;position:relative;
+  display:grid;place-items:center;color:#1a1407;font-family:'Cairo';font-weight:900;font-size:20px;
+  background:conic-gradient(from 210deg,var(--gold-b),var(--gold),#b98a1e,var(--gold-b));
+  box-shadow:0 8px 22px -8px rgba(224,181,60,.7), inset 0 1px 0 rgba(255,255,255,.5);
+}
+.mark::after{content:"";position:absolute;inset:-5px;border-radius:17px;border:1px solid var(--line);animation:ring 3.4s ease-in-out infinite}
+@keyframes ring{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:.8;transform:scale(1.06)}}
+.brand b{font-family:'Cairo';font-weight:900;font-size:19px;letter-spacing:.3px;color:var(--cream);display:block}
+.brand span{font-size:11px;color:var(--mut);letter-spacing:2px;text-transform:uppercase}
+
+.nav{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.nav a{
+  display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;
+  color:var(--mut);text-decoration:none;font-weight:600;font-size:14.5px;position:relative;
+  transition:.25s cubic-bezier(.4,0,.2,1);cursor:pointer;
+}
+.nav a .ic{width:19px;height:19px;flex:none;opacity:.8}
+.nav a:hover{color:var(--cream);background:var(--surf2);transform:translateX(-3px)}
+.nav a.on{color:#1a1407;background:linear-gradient(100deg,var(--gold-b),var(--gold));box-shadow:0 10px 24px -12px rgba(224,181,60,.8)}
+.nav a.on .ic{opacity:1}
+.nav a.on::before{content:"";position:absolute;inset-inline-start:-18px;top:9px;bottom:9px;width:3px;border-radius:3px;background:var(--gold-b)}
+
+.side-foot{margin-top:auto;padding-top:18px;border-top:1px solid var(--line2)}
+.me{display:flex;align-items:center;gap:11px;padding:10px;border-radius:13px;background:var(--surf2);border:1px solid var(--line2)}
+.me .av{width:38px;height:38px;border-radius:11px;flex:none;display:grid;place-items:center;font-family:'Cairo';font-weight:900;color:#1a1407;background:linear-gradient(135deg,var(--gold-b),var(--gold))}
+.me .who{min-width:0}
+.me .who b{display:block;font-size:13.5px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me .who small{font-size:11px;color:var(--mut)}
+.logout{margin-top:10px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:12px;border:1px solid rgba(240,115,110,.3);background:rgba(240,115,110,.07);color:#f3a39f;font-weight:600;font-size:13.5px;cursor:pointer;transition:.2s}
+.logout:hover{background:rgba(240,115,110,.16);border-color:rgba(240,115,110,.5)}
+
+/* ===== المنطقة الرئيسية ===== */
+.main{min-width:0;display:flex;flex-direction:column}
+.top{
+  position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;
+  padding:18px 34px;border-bottom:1px solid var(--line2);
+  background:linear-gradient(180deg,rgba(8,8,12,.92),rgba(8,8,12,.6));backdrop-filter:blur(10px);
+}
+.greet h2{font-family:'Cairo';font-weight:800;font-size:21px;color:var(--cream)}
+.greet h2 em{font-style:normal;color:var(--gold-b)}
+.greet p{font-size:12.5px;color:var(--mut);margin-top:2px}
+.top-r{display:flex;align-items:center;gap:12px}
+.clock{font-family:'JetBrains Mono';font-size:13px;color:var(--mut);background:var(--surf2);border:1px solid var(--line2);padding:8px 13px;border-radius:11px}
+.pill{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--green);background:rgba(95,211,138,.08);border:1px solid rgba(95,211,138,.25);padding:8px 13px;border-radius:30px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 0 rgba(95,211,138,.6);animation:pulse 1.8s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(95,211,138,.55)}70%{box-shadow:0 0 0 8px rgba(95,211,138,0)}100%{box-shadow:0 0 0 0 rgba(95,211,138,0)}}
+
+.content{padding:30px 34px 70px;display:flex;flex-direction:column;gap:26px}
+
+/* ===== إحصائيات Bento ===== */
+.bento{display:grid;grid-template-columns:1.5fr 1fr 1fr;grid-template-rows:auto auto;gap:16px}
+.card{
+  position:relative;overflow:hidden;border-radius:var(--r2);border:1px solid var(--line2);
+  background:linear-gradient(160deg,var(--surf),var(--bg2));padding:22px;
+  transition:transform .3s cubic-bezier(.2,.8,.2,1),border-color .3s,box-shadow .3s;
+}
+.card:hover{transform:translateY(-4px);border-color:var(--line);box-shadow:var(--shadow)}
+.card .glow{position:absolute;width:160px;height:160px;border-radius:50%;filter:blur(46px);opacity:.5;top:-40px;inset-inline-end:-30px;pointer-events:none}
+.card .lab{font-size:12.5px;color:var(--mut);font-weight:600;letter-spacing:.4px}
+.card .num{font-family:'Cairo';font-weight:900;font-size:40px;line-height:1;margin-top:14px;color:var(--cream)}
+.card .ic2{position:absolute;bottom:18px;inset-inline-end:20px;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--surf3);border:1px solid var(--line2);font-size:20px}
+.card.big{grid-row:span 2;display:flex;flex-direction:column;justify-content:space-between;
+  background:linear-gradient(155deg,#1c1708,#100f14 70%);border-color:var(--line)}
+.card.big .num{font-size:58px;color:var(--gold-b);text-shadow:0 0 30px rgba(224,181,60,.35)}
+.card.big .sub{font-size:12.5px;color:var(--mut);margin-top:6px}
+.card.big .bars{display:flex;gap:5px;align-items:flex-end;height:46px;margin-top:18px}
+.card.big .bars i{flex:1;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--gold-b),var(--gold-d));opacity:.85;animation:grow .9s ease both}
+@keyframes grow{from{height:0!important}}
+
+/* ===== الأقسام ===== */
+.panel{border-radius:var(--r2);border:1px solid var(--line2);background:linear-gradient(160deg,var(--surf),var(--bg2));overflow:hidden}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 24px;border-bottom:1px solid var(--line2)}
+.panel-h h3{font-family:'Cairo';font-weight:800;font-size:18px;display:flex;align-items:center;gap:10px}
+.panel-h h3 .tag{width:8px;height:22px;border-radius:4px;background:linear-gradient(180deg,var(--gold-b),var(--gold))}
+.panel-b{padding:24px}
+
+.form{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.field{display:flex;flex-direction:column;gap:8px}
+.field.full{grid-column:1/-1}
+.field label{font-size:12.5px;color:var(--mut);font-weight:600}
+.inp,.sel{
+  width:100%;padding:13px 15px;border-radius:13px;border:1px solid var(--line2);
+  background:var(--bg2);color:var(--cream);font-family:inherit;font-size:14.5px;transition:.2s;outline:none;
+}
+.inp::placeholder{color:var(--mut2)}
+.inp:focus,.sel:focus{border-color:var(--gold);box-shadow:0 0 0 3px rgba(224,181,60,.14);background:#0c0c12}
+.sel{appearance:none;cursor:pointer;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23837f74' stroke-width='2'%3E%3Cpath d='M3 5l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:left 15px center}
+.sel option{background:#0c0c12;color:var(--cream)}
+
+.check{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-size:13.5px;color:var(--mut)}
+.check input{display:none}
+.check .box{width:20px;height:20px;border-radius:7px;border:1.5px solid var(--line);display:grid;place-items:center;transition:.2s;flex:none}
+.check input:checked + .box{background:linear-gradient(135deg,var(--gold-b),var(--gold));border-color:transparent}
+.check .box svg{opacity:0;transition:.2s}
+.check input:checked + .box svg{opacity:1}
+
+.actions{display:flex;align-items:center;gap:14px;margin-top:6px}
+.btn{
+  position:relative;overflow:hidden;border:none;cursor:pointer;font-family:'Cairo';font-weight:800;
+  padding:14px 30px;border-radius:13px;font-size:15px;color:#1a1407;
+  background:linear-gradient(100deg,var(--gold-b),var(--gold));box-shadow:0 14px 30px -14px rgba(224,181,60,.8);
+  transition:transform .2s,box-shadow .2s;
+}
+.btn:hover{transform:translateY(-2px);box-shadow:0 18px 36px -14px rgba(224,181,60,.9)}
+.btn:active{transform:translateY(0)}
+.btn::after{content:"";position:absolute;top:0;inset-inline-start:-120%;width:60%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.55),transparent);transform:skewX(-18deg);transition:.6s}
+.btn:hover::after{inset-inline-start:130%}
+.btn:disabled{opacity:.6;cursor:wait;transform:none}
+.btn.ghost{background:var(--surf3);color:var(--cream);box-shadow:none;border:1px solid var(--line2)}
+.btn.ghost:hover{border-color:var(--line);background:var(--surf2)}
+
+/* ===== الجدول ===== */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:560px}
+thead th{font-size:11.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:600;text-align:start;padding:14px 24px;background:var(--bg2)}
+tbody td{padding:15px 24px;border-top:1px solid var(--line2);font-size:14px}
+tbody tr{transition:background .2s}
+tbody tr:hover{background:var(--surf2)}
+.u-name{font-family:'JetBrains Mono';font-weight:700;color:var(--gold-b)}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:30px;font-size:12px;font-weight:700}
+.badge.ok{color:var(--green);background:rgba(95,211,138,.1);border:1px solid rgba(95,211,138,.25)}
+.badge.no{color:var(--red);background:rgba(240,115,110,.1);border:1px solid rgba(240,115,110,.25)}
+.badge.ok .d{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite}
+.badge.no .d{width:7px;height:7px;border-radius:50%;background:var(--red)}
+.empty{padding:54px 20px;text-align:center;color:var(--mut)}
+.empty .e-ic{font-size:38px;opacity:.5}
+.empty p{margin-top:10px;font-size:14px}
+
+/* ===== Toast ===== */
+.toasts{position:fixed;top:20px;inset-inline-start:50%;transform:translateX(50%);z-index:200;display:flex;flex-direction:column;gap:10px;width:min(380px,92vw)}
+.toast{
+  display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-radius:14px;
+  background:linear-gradient(160deg,var(--surf3),var(--surf));border:1px solid var(--line2);
+  box-shadow:var(--shadow);position:relative;overflow:hidden;
+  animation:tin .4s cubic-bezier(.2,.9,.3,1.2) both;
+}
+.toast.out{animation:tout .35s ease forwards}
+@keyframes tin{from{opacity:0;transform:translateY(-16px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes tout{to{opacity:0;transform:translateY(-12px) scale(.97)}}
+.toast .t-ic{width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:16px}
+.toast.ok .t-ic{background:rgba(95,211,138,.15);color:var(--green)}
+.toast.err .t-ic{background:rgba(240,115,110,.15);color:var(--red)}
+.toast.info .t-ic{background:rgba(111,176,245,.15);color:var(--blue)}
+.toast .t-tx b{display:block;font-size:13.5px;color:var(--cream);margin-bottom:2px}
+.toast .t-tx span{font-size:12.5px;color:var(--mut);line-height:1.5}
+.toast .bar{position:absolute;bottom:0;inset-inline-start:0;height:3px;background:var(--gold);animation:shrink 3.6s linear forwards}
+.toast.ok .bar{background:var(--green)}.toast.err .bar{background:var(--red)}.toast.info .bar{background:var(--blue)}
+@keyframes shrink{from{width:100%}to{width:0}}
+
+/* ===== Modal ===== */
+.backdrop{position:fixed;inset:0;z-index:150;display:none;align-items:center;justify-content:center;padding:20px;
+  background:rgba(4,4,7,.72);backdrop-filter:blur(7px)}
+.backdrop.show{display:flex;animation:fade .25s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{width:min(480px,94vw);border-radius:var(--r2);border:1px solid var(--line);
+  background:linear-gradient(165deg,#16161e,#0c0c11);box-shadow:var(--glow);overflow:hidden;
+  animation:pop .35s cubic-bezier(.2,.9,.3,1.3) both}
+@keyframes pop{from{opacity:0;transform:scale(.9) translateY(14px)}to{opacity:1;transform:none}}
+.modal-h{padding:24px 26px 18px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:14px}
+.modal-h .chk{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:22px;
+  background:rgba(95,211,138,.12);border:1px solid rgba(95,211,138,.3);color:var(--green)}
+.modal-h h4{font-family:'Cairo';font-weight:800;font-size:18px}
+.modal-h p{font-size:12.5px;color:var(--mut);margin-top:2px}
+.modal-b{padding:22px 26px;display:grid;gap:11px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:13px 15px;border-radius:13px;background:var(--bg2);border:1px solid var(--line2)}
+.row .k{font-size:12px;color:var(--mut);font-weight:600}
+.row .v{font-family:'JetBrains Mono';font-weight:700;font-size:15px;color:var(--cream);display:flex;align-items:center;gap:9px}
+.row .v.gold{color:var(--gold-b)}
+.row .v.grn{color:var(--green)}
+.cp{width:30px;height:30px;border-radius:9px;border:1px solid var(--line2);background:var(--surf3);color:var(--mut);cursor:pointer;display:grid;place-items:center;transition:.2s;flex:none}
+.cp:hover{color:var(--gold-b);border-color:var(--line)}
+.modal-f{padding:0 26px 24px;display:flex;gap:10px}
+.modal-f .btn{flex:1}
+
+/* ===== reveal ===== */
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1)}
+.reveal.in{opacity:1;transform:none}
+
+/* ===== شاشة الدخول ===== */
+.login{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-box{width:min(420px,94vw);border-radius:var(--r2);border:1px solid var(--line);
+  background:linear-gradient(165deg,#13131b,#0a0a0f);box-shadow:var(--glow);padding:38px 34px}
+.login-box .mark{width:62px;height:62px;border-radius:18px;font-size:26px;margin:0 auto 18px}
+.login-box h1{font-family:'Cairo';font-weight:900;font-size:30px;text-align:center;color:var(--cream)}
+.login-box h1 b{color:var(--gold-b)}
+.login-box .sub{text-align:center;color:var(--mut);font-size:13px;margin:6px 0 28px;letter-spacing:1px}
+.login-box .field{margin-bottom:15px}
+.login-box .btn{width:100%;margin-top:8px}
+.spin{width:18px;height:18px;border:2.5px solid rgba(26,20,7,.3);border-top-color:#1a1407;border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-3px;margin-inline-end:8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+/* ===== موبايل ===== */
+@media(max-width:880px){
+  .app{grid-template-columns:1fr}
+  .side{position:sticky;height:auto;flex-direction:row;align-items:center;gap:12px;padding:14px 16px;flex-wrap:wrap}
+  .brand{padding:0;flex:1}.nav,.side-foot .me{display:none}
+  .side-foot{margin:0;border:0;padding:0}.logout{margin:0;width:auto;padding:9px 16px}
+  .top{padding:16px 18px}.content{padding:20px 16px 60px}
+  .bento{grid-template-columns:1fr 1fr}.card.big{grid-row:auto;grid-column:1/-1}
+  .card.big .num{font-size:44px}.form{grid-template-columns:1fr}
+  .clock{display:none}
+}
+</style>
 </head>
-<body class="text-white">
+<body>
+<div class="grid-veil"></div>
 
-    <!-- شاشة تسجيل الدخول -->
-    <div id="loginScreen" class="flex items-center justify-center min-h-screen p-4">
-        <div class="glass rounded-2xl p-8 w-full max-w-md">
-            <div class="text-center mb-8">
-                <div class="w-20 h-20 mx-auto mb-4 rounded-full gold-bg flex items-center justify-center text-4xl">🔐</div>
-                <h1 class="text-4xl font-black gold-text">B.T.C VPN</h1>
-                <p class="text-gray-400 mt-2">لوحة التحكم الاحترافية</p>
-            </div>
-            
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-sm text-gray-400 mb-2">اسم المستخدم</label>
-                    <input id="username" type="text" placeholder="أدخل اسم المستخدم" 
-                           class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
-                </div>
-                <div>
-                    <label class="block text-sm text-gray-400 mb-2">كلمة المرور</label>
-                    <input id="password" type="password" placeholder="أدخل كلمة المرور" 
-                           class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
-                </div>
-                <button onclick="doLogin()" id="loginBtn" class="w-full btn-gold p-3 rounded-lg font-bold text-lg">
-                    تسجيل الدخول
-                </button>
-            </div>
-            
-            <div id="errorMsg" class="mt-4 p-3 bg-red-500/20 border border-red-500 rounded-lg text-red-400 text-center hidden"></div>
-        </div>
+<!-- شاشة الدخول -->
+<div class="login" id="loginScreen">
+  <div class="login-box">
+    <div class="mark disp">B</div>
+    <h1 class="disp">B.T.C <b>VPN</b></h1>
+    <p class="sub">وحدة التحكم الاحترافية</p>
+    <div class="field">
+      <label>اسم المستخدم</label>
+      <input class="inp" id="username" type="text" placeholder="أدخل اسم المستخدم" autocomplete="username">
     </div>
-
-    <!-- لوحة التحكم -->
-    <div id="dashboard" class="hidden min-h-screen">
-        <!-- الشريط العلوي -->
-        <nav class="glass border-b border-gray-700 sticky top-0 z-50">
-            <div class="container mx-auto px-6 py-4 flex justify-between items-center">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-full gold-bg flex items-center justify-center text-xl">🔐</div>
-                    <div>
-                        <h1 class="text-2xl font-black gold-text">B.T.C VPN</h1>
-                        <p id="userRole" class="text-xs text-gray-400"></p>
-                    </div>
-                </div>
-                <div class="flex items-center gap-4">
-                    <div class="text-left">
-                        <p id="userName" class="text-sm text-gray-400"></p>
-                        <p id="userCredits" class="text-lg font-bold gold-text"></p>
-                    </div>
-                    <button onclick="doLogout()" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg transition text-sm">
-                        🚪 خروج
-                    </button>
-                </div>
-            </div>
-        </nav>
-
-        <div class="container mx-auto px-6 py-8">
-            <!-- الإحصائيات -->
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
-                <div class="glass rounded-xl p-6">
-                    <p class="text-gray-400 text-sm">الرصيد المتاح</p>
-                    <p id="statCredits" class="text-3xl font-black gold-text mt-2">0</p>
-                </div>
-                <div class="glass rounded-xl p-6">
-                    <p class="text-gray-400 text-sm">إجمالي الحسابات</p>
-                    <p id="statTotal" class="text-3xl font-black text-blue-400 mt-2">0</p>
-                </div>
-                <div class="glass rounded-xl p-6">
-                    <p class="text-gray-400 text-sm">الحسابات النشطة</p>
-                    <p id="statActive" class="text-3xl font-black text-green-400 mt-2">0</p>
-                </div>
-                <div class="glass rounded-xl p-6">
-                    <p class="text-gray-400 text-sm">المنتهية</p>
-                    <p id="statExpired" class="text-3xl font-black text-red-400 mt-2">0</p>
-                </div>
-            </div>
-
-            <!-- إنشاء حساب جديد -->
-            <div class="glass rounded-xl p-6 mb-8">
-                <h2 class="text-2xl font-bold gold-text mb-6"> إنشاء حساب جديد</h2>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-2">اسم المستخدم</label>
-                        <input id="accUsername" type="text" placeholder="اتركه فارغاً للتوليد العشوائي" 
-                               class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-2">كلمة المرور</label>
-                        <input id="accPassword" type="text" placeholder="اتركها فارغة للتوليد العشوائي" 
-                               class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
-                    </div>
-                    <div>
-                        <label class="block text-sm text-gray-400 mb-2">الباقة</label>
-                        <select id="accType" class="w-full p-3 bg-gray-800/50 border border-gray-700 rounded-lg text-white focus:border-yellow-500 focus:outline-none">
-                            <option value="1">🎁 تجريبي - يوم واحد</option>
-                            <option value="2">📅 أسبوعي - 7 أيام</option>
-                            <option value="3">📆 شهري - 30 يوم</option>
-                            <option value="4">️ 3 أشهر - 90 يوم</option>
-                            <option value="5"> جيمنج أسبوعي</option>
-                            <option value="6">🎮 جيمنج شهري</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div class="flex items-center gap-4 mb-4">
-                    <label class="flex items-center gap-2 cursor-pointer">
-                        <input id="isRandom" type="checkbox" checked class="w-5 h-5 accent-yellow-500">
-                        <span class="text-gray-300">توليد عشوائي</span>
-                    </label>
-                </div>
-                
-                <button onclick="createAccount()" id="createBtn" class="btn-gold px-8 py-3 rounded-lg font-bold text-lg">
-                    إنشاء الحساب
-                </button>
-                
-                <!-- نتيجة الإنشاء -->
-                <div id="createResult" class="mt-6 p-6 bg-green-500/10 border border-green-500 rounded-lg hidden">
-                    <p class="font-bold text-green-400 text-xl mb-4">✅ تم إنشاء الحساب بنجاح!</p>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="bg-gray-800/50 p-4 rounded-lg">
-                            <p class="text-gray-400 text-sm">اسم المستخدم</p>
-                            <p id="resultUsername" class="font-mono text-xl gold-text"></p>
-                        </div>
-                        <div class="bg-gray-800/50 p-4 rounded-lg">
-                            <p class="text-gray-400 text-sm">كلمة المرور</p>
-                            <p id="resultPassword" class="font-mono text-xl text-green-400"></p>
-                        </div>
-                        <div class="bg-gray-800/50 p-4 rounded-lg">
-                            <p class="text-gray-400 text-sm">الباقة</p>
-                            <p id="resultPlan" class="font-mono text-xl text-blue-400"></p>
-                        </div>
-                        <div class="bg-gray-800/50 p-4 rounded-lg">
-                            <p class="text-gray-400 text-sm">تاريخ الانتهاء</p>
-                            <p id="resultExpiry" class="font-mono text-xl text-purple-400"></p>
-                        </div>
-                    </div>
-                    <button onclick="copyCredentials()" class="mt-4 btn-gold px-6 py-2 rounded-lg font-bold">
-                        📋 نسخ البيانات
-                    </button>
-                </div>
-            </div>
-
-            <!-- قائمة الحسابات -->
-            <div class="glass rounded-xl p-6">
-                <div class="flex justify-between items-center mb-6">
-                    <h2 class="text-2xl font-bold gold-text">📋 الحسابات</h2>
-                    <button onclick="loadAccounts()" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg transition">
-                        🔄 تحديث
-                    </button>
-                </div>
-                
-                <div class="overflow-x-auto">
-                    <table class="w-full text-right">
-                        <thead class="bg-gray-800/50">
-                            <tr>
-                                <th class="p-4 text-gray-400">المستخدم</th>
-                                <th class="p-4 text-gray-400">الباقة</th>
-                                <th class="p-4 text-gray-400">الانتهاء</th>
-                                <th class="p-4 text-gray-400">الحالة</th>
-                            </tr>
-                        </thead>
-                        <tbody id="accountsList" class="divide-y divide-gray-700"></tbody>
-                    </table>
-                </div>
-                <p id="noAccounts" class="text-center py-8 text-gray-400 hidden">لا توجد حسابات</p>
-            </div>
-        </div>
+    <div class="field">
+      <label>كلمة المرور</label>
+      <input class="inp" id="password" type="password" placeholder="••••••••" autocomplete="current-password">
     </div>
+    <button class="btn" id="loginBtn" onclick="doLogin()">تسجيل الدخول</button>
+  </div>
+</div>
 
-    <script>
-        let token = localStorage.getItem('btc_token');
-        let currentUser = null;
-        let lastCreated = null;
+<!-- التطبيق -->
+<div class="app" id="app" style="display:none">
+  <aside class="side">
+    <div class="brand">
+      <div class="mark disp">B</div>
+      <div><b class="disp">B.T.C VPN</b><span>Control Deck</span></div>
+    </div>
+    <nav class="nav">
+      <a class="on" data-go="stats"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg>لوحة القيادة</a>
+      <a data-go="create"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>إصدار حساب</a>
+      <a data-go="accounts"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg>الحسابات</a>
+    </nav>
+    <div class="side-foot">
+      <div class="me">
+        <div class="av disp" id="meAv">A</div>
+        <div class="who"><b id="meName">—</b><small id="meRole">—</small></div>
+      </div>
+      <button class="logout" onclick="doLogout()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+        تسجيل الخروج
+      </button>
+    </div>
+  </aside>
 
-        // التحقق عند التحميل
-        if (token) verifyToken();
+  <main class="main">
+    <header class="top">
+      <div class="greet">
+        <h2 class="disp" id="greet">مرحباً، <em id="greetName">—</em></h2>
+        <p id="greetSub">إليك نظرة عامة على شبكتك الآن</p>
+      </div>
+      <div class="top-r">
+        <div class="clock mono" id="clock">--:--:--</div>
+        <div class="pill"><span class="dot"></span>الخادم متصل</div>
+      </div>
+    </header>
 
-        async function verifyToken() {
-            try {
-                const res = await fetch('/api/me', {
-                    headers: { 'Authorization': `Bearer ${token}` }
-                });
-                const data = await res.json();
-                if (data.success) {
-                    currentUser = data.data;
-                    showDashboard();
-                } else {
-                    doLogout();
-                }
-            } catch (error) {
-                console.error(error);
-            }
-        }
+    <div class="content">
+      <!-- إحصائيات -->
+      <section class="bento reveal" id="sec-stats">
+        <div class="card big">
+          <div class="glow" style="background:var(--gold)"></div>
+          <div>
+            <div class="lab">الرصيد المتاح للإصدار</div>
+            <div class="num" id="sCredits">0</div>
+            <div class="sub">وحدة رصيد • قابلة للتحويل بين الموزّعين</div>
+          </div>
+          <div class="bars" id="bars"></div>
+        </div>
+        <div class="card"><div class="glow" style="background:var(--blue)"></div><div class="lab">إجمالي الحسابات</div><div class="num" id="sTotal">0</div><div class="ic2">👥</div></div>
+        <div class="card"><div class="glow" style="background:var(--green)"></div><div class="lab">نشطة الآن</div><div class="num" id="sActive" style="color:var(--green)">0</div><div class="ic2">⚡</div></div>
+        <div class="card" style="grid-column:span 2"><div class="glow" style="background:var(--red)"></div><div class="lab">منتهية الصلاحية</div><div class="num" id="sExpired" style="color:var(--red)">0</div><div class="ic2">⏳</div></div>
+      </section>
 
-        async function doLogin() {
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value;
-            const btn = document.getElementById('loginBtn');
-            const errorEl = document.getElementById('errorMsg');
+      <!-- إنشاء -->
+      <section class="panel reveal" id="sec-create">
+        <div class="panel-h"><h3 class="disp"><span class="tag"></span>إصدار حساب جديد</h3></div>
+        <div class="panel-b">
+          <div class="form">
+            <div class="field"><label>اسم المستخدم</label><input class="inp" id="accUser" placeholder="اتركه فارغاً للتوليد العشوائي"></div>
+            <div class="field"><label>كلمة المرور</label><input class="inp" id="accPass" placeholder="اتركها فارغة للتوليد العشوائي"></div>
+            <div class="field full">
+              <label>نوع الباقة</label>
+              <select class="sel" id="accPlan">
+                <option value="trial">🎁 تجريبي — يوم واحد (مجاني)</option>
+                <option value="weekly">📅 أسبوعي — 7 أيام</option>
+                <option value="monthly" selected>📆 شهري — 30 يوم</option>
+                <option value="3months">🗓️ ثلاثة أشهر — 90 يوم</option>
+                <option value="gaming_weekly">🎮 جيمنج أسبوعي</option>
+                <option value="gaming_monthly">🎮 جيمنج شهري</option>
+              </select>
+            </div>
+            <div class="field full">
+              <label class="check"><input type="checkbox" id="isRandom" checked><span class="box"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1a1407" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span>توليد بيانات عشوائية آمنة تلقائياً</label>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn" id="createBtn" onclick="createAccount()">إصدار الحساب</button>
+            <button class="btn ghost" onclick="resetForm()">مسح الحقول</button>
+          </div>
+        </div>
+      </section>
 
-            if (!username || !password) {
-                errorEl.textContent = 'يرجى إدخال البيانات';
-                errorEl.classList.remove('hidden');
-                return;
-            }
+      <!-- الحسابات -->
+      <section class="panel reveal" id="sec-accounts">
+        <div class="panel-h">
+          <h3 class="disp"><span class="tag"></span>سجلّ الحسابات</h3>
+          <button class="btn ghost" onclick="loadAccounts()" style="padding:9px 16px;font-size:13px">↻ تحديث</button>
+        </div>
+        <div class="tbl-wrap">
+          <table>
+            <thead><tr><th>المستخدم</th><th>الباقة</th><th>تاريخ الانتهاء</th><th>الحالة</th></tr></thead>
+            <tbody id="accBody"></tbody>
+          </table>
+          <div class="empty" id="emptyAcc" style="display:none"><div class="e-ic">📭</div><p>لا توجد حسابات مُصدَرة بعد</p></div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
 
-            btn.disabled = true;
-            btn.innerHTML = '<span class="loading"></span> جاري...';
-            errorEl.classList.add('hidden');
+<!-- Toast + Modal -->
+<div class="toasts" id="toasts"></div>
+<div class="backdrop" id="backdrop">
+  <div class="modal">
+    <div class="modal-h">
+      <div class="chk">✓</div>
+      <div><h4 class="disp">تم إصدار الحساب بنجاح</h4><p>احفظ البيانات أو انسخها لمشاركتها فوراً</p></div>
+    </div>
+    <div class="modal-b">
+      <div class="row"><span class="k">اسم المستخدم</span><span class="v gold"><span id="mUser"></span><button class="cp" onclick="cpOne('mUser')">⧉</button></span></div>
+      <div class="row"><span class="k">كلمة المرور</span><span class="v grn"><span id="mPass"></span><button class="cp" onclick="cpOne('mPass')">⧉</button></span></div>
+      <div class="row"><span class="k">الباقة</span><span class="v"><span id="mPlan"></span></span></div>
+      <div class="row"><span class="k">ينتهي في</span><span class="v"><span id="mExp"></span></span></div>
+    </div>
+    <div class="modal-f">
+      <button class="btn" onclick="copyAll()">⧉ نسخ الكل</button>
+      <button class="btn ghost" onclick="closeModal()">إغلاق</button>
+    </div>
+  </div>
+</div>
 
-            try {
-                const res = await fetch('/api/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
+<script>
+const API = location.origin;
+let token = localStorage.getItem('btc_token');
+let me = null, last = null;
 
-                const data = await res.json();
-                btn.disabled = false;
-                btn.textContent = 'تسجيل الدخول';
+/* ---------- Toast ---------- */
+function toast(type, title, msg){
+  const ic = {ok:'✓', err:'✕', info:'ℹ'}[type] || 'ℹ';
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  el.innerHTML = `<div class="t-ic">${ic}</div><div class="t-tx"><b>${title}</b><span>${msg||''}</span></div><div class="bar"></div>`;
+  document.getElementById('toasts').appendChild(el);
+  setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>el.remove(),350); }, 3600);
+}
 
-                if (data.success && data.data) {
-                    token = data.data.token;
-                    localStorage.setItem('btc_token', token);
-                    currentUser = data.data.user;
-                    showDashboard();
-                } else {
-                    errorEl.textContent = data.message || 'بيانات خاطئة';
-                    errorEl.classList.remove('hidden');
-                }
-            } catch (error) {
-                btn.disabled = false;
-                btn.textContent = 'تسجيل الدخول';
-                errorEl.textContent = 'خطأ في الاتصال بالخادم';
-                errorEl.classList.remove('hidden');
-            }
-        }
+/* ---------- Modal ---------- */
+function openModal(d){
+  last = d;
+  document.getElementById('mUser').textContent = d.username;
+  document.getElementById('mPass').textContent = d.password;
+  document.getElementById('mPlan').textContent = d.plan;
+  document.getElementById('mExp').textContent = new Date(d.expiry_date).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'});
+  document.getElementById('backdrop').classList.add('show');
+}
+function closeModal(){ document.getElementById('backdrop').classList.remove('show'); }
+document.getElementById('backdrop').addEventListener('click', e=>{ if(e.target.id==='backdrop') closeModal(); });
+function cpOne(id){ navigator.clipboard.writeText(document.getElementById(id).textContent); toast('ok','تم النسخ','تم نسخ الحقل إلى الحافظة'); }
+function copyAll(){
+  if(!last) return;
+  const t = `B.T.C VPN — حساب جديد\nالمستخدم: ${last.username}\nكلمة المرور: ${last.password}\nالباقة: ${last.plan}\nالانتهاء: ${last.expiry_date}`;
+  navigator.clipboard.writeText(t); toast('ok','تم نسخ البيانات','كل تفاصيل الحساب في الحافظة');
+}
 
-        function showDashboard() {
-            document.getElementById('loginScreen').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
-            
-            document.getElementById('userName').textContent = currentUser.username;
-            document.getElementById('userRole').textContent = currentUser.role === 'admin' ? '👑 مدير النظام' : '👤 موزع';
-            document.getElementById('userCredits').textContent = ` ${currentUser.credits || 0} رصيد`;
-            
-            loadStats();
-            loadAccounts();
-        }
+/* ---------- Counter ---------- */
+function animate(el, end){
+  const dur=900, t0=performance.now();
+  (function step(t){
+    const p=Math.min((t-t0)/dur,1), e=1-Math.pow(1-p,3);
+    el.textContent = Math.round(end*e).toLocaleString('en');
+    if(p<1) requestAnimationFrame(step);
+  })(t0);
+}
 
-        function doLogout() {
-            localStorage.removeItem('btc_token');
-            token = null;
-            currentUser = null;
-            location.reload();
-        }
+/* ---------- Clock + Greet ---------- */
+function tick(){
+  const n=new Date();
+  document.getElementById('clock').textContent = n.toLocaleTimeString('ar-EG',{hour12:false});
+}
+setInterval(tick,1000); tick();
+function setGreet(name){
+  const h=new Date().getHours();
+  const g = h<12?'صباح الخير':h<18?'طاب يومك':'مساء الخير';
+  document.getElementById('greet').innerHTML = `${g}، <em>${name}</em>`;
+}
 
-        async function loadStats() {
-            try {
-                const res = await fetch('/api/stats', { 
-                    headers: { 'Authorization': `Bearer ${token}` } 
-                });
-                const data = await res.json();
-                if (data.success) {
-                    document.getElementById('statTotal').textContent = data.stats.total_accounts || 0;
-                    document.getElementById('statActive').textContent = data.stats.active_accounts || 0;
-                    document.getElementById('statExpired').textContent = data.stats.expired_accounts || 0;
-                    document.getElementById('statCredits').textContent = data.stats.available_credits || 0;
-                }
-            } catch (error) {
-                console.error(error);
-            }
-        }
+/* ---------- Auth ---------- */
+async function verify(){
+  try{
+    const r=await fetch(API+'/api/me',{headers:{Authorization:'Bearer '+token}});
+    const d=await r.json();
+    if(d.success){ me=d.data; enter(); } else logout();
+  }catch(e){ logout(); }
+}
+async function doLogin(){
+  const u=document.getElementById('username').value.trim();
+  const p=document.getElementById('password').value;
+  const b=document.getElementById('loginBtn');
+  if(!u||!p){ toast('err','بيانات ناقصة','أدخل اسم المستخدم وكلمة المرور'); return; }
+  b.disabled=true; b.innerHTML='<span class="spin"></span>جارٍ التحقق…';
+  try{
+    const r=await fetch(API+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    const d=await r.json();
+    b.disabled=false; b.textContent='تسجيل الدخول';
+    if(d.success&&d.data){ token=d.data.token; localStorage.setItem('btc_token',token); me=d.data.user; enter(); toast('ok','أهلاً بك','تم فتح لوحة التحكم بنجاح'); }
+    else toast('err','فشل الدخول', d.message||'تحقق من البيانات');
+  }catch(e){ b.disabled=false; b.textContent='تسجيل الدخول'; toast('err','تعذّر الاتصال','الخادم لا يستجيب، حاول لاحقاً'); }
+}
+function logout(){ localStorage.removeItem('btc_token'); token=null; location.reload(); }
+function enter(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='grid';
+  const name=me.username, role = me.role==='admin'?'مدير النظام':'موزّع';
+  document.getElementById('meName').textContent=name;
+  document.getElementById('meRole').textContent=role;
+  document.getElementById('meAv').textContent=name.charAt(0).toUpperCase();
+  document.getElementById('greetName').textContent=name;
+  setGreet(name);
+  buildBars();
+  loadStats(); loadAccounts(); revealAll();
+}
+function buildBars(){
+  const c=document.getElementById('bars'); c.innerHTML='';
+  for(let i=0;i<14;i++){ const b=document.createElement('i'); b.style.height=(20+Math.random()*80)+'%'; b.style.animationDelay=(i*0.05)+'s'; c.appendChild(b); }
+}
 
-        async function createAccount() {
-            const username = document.getElementById('accUsername').value.trim();
-            const password = document.getElementById('accPassword').value.trim();
-            const plan_id = parseInt(document.getElementById('accType').value);
-            const is_random = document.getElementById('isRandom').checked;
-            const btn = document.getElementById('createBtn');
+/* ---------- Stats ---------- */
+async function loadStats(){
+  try{
+    const r=await fetch(API+'/api/stats',{headers:{Authorization:'Bearer '+token}});
+    const d=await r.json();
+    if(d.success){
+      animate(document.getElementById('sCredits'), d.stats.available_credits||0);
+      animate(document.getElementById('sTotal'), d.stats.total_accounts||0);
+      animate(document.getElementById('sActive'), d.stats.active_accounts||0);
+      animate(document.getElementById('sExpired'), d.stats.expired_accounts||0);
+    }
+  }catch(e){}
+}
 
-            btn.disabled = true;
-            btn.textContent = 'جاري الإنشاء...';
+/* ---------- Create ---------- */
+async function createAccount(){
+  const u=document.getElementById('accUser').value.trim();
+  const p=document.getElementById('accPass').value.trim();
+  const plan_id=document.getElementById('accPlan').value;   // نصّ = معرّف Firestore
+  const is_random=document.getElementById('isRandom').checked;
+  const b=document.getElementById('createBtn');
+  b.disabled=true; b.innerHTML='<span class="spin"></span>جارٍ الإصدار…';
+  try{
+    const r=await fetch(API+'/api/account/create',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+token},
+      body:JSON.stringify({username:u||null,password:p||null,plan_id:plan_id,is_random:is_random})});
+    const d=await r.json();
+    b.disabled=false; b.textContent='إصدار الحساب';
+    if(d.success){ openModal(d.data); toast('ok','تم الإصدار','الحساب '+d.data.username+' جاهز'); loadStats(); loadAccounts(); resetForm(); }
+    else toast('err','تعذّر الإصدار', d.message||'حدث خطأ');
+  }catch(e){ b.disabled=false; b.textContent='إصدار الحساب'; toast('err','خطأ في الاتصال','لم نتمكّن من الوصول للخادم'); }
+}
+function resetForm(){ document.getElementById('accUser').value=''; document.getElementById('accPass').value=''; }
 
-            try {
-                const res = await fetch('/api/account/create', {
-                    method: 'POST',
-                    headers: { 
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ 
-                        username: username || null, 
-                        password: password || null, 
-                        plan_id, 
-                        is_random 
-                    })
-                });
+/* ---------- Accounts ---------- */
+async function loadAccounts(){
+  try{
+    const r=await fetch(API+'/api/accounts',{headers:{Authorization:'Bearer '+token}});
+    const d=await r.json();
+    const body=document.getElementById('accBody'), empty=document.getElementById('emptyAcc');
+    body.innerHTML='';
+    const list=d.accounts||[];
+    if(!list.length){ empty.style.display='block'; return; }
+    empty.style.display='none';
+    list.forEach(a=>{
+      const exp=new Date(a.expiry_date), dead=exp<new Date();
+      body.innerHTML += `<tr>
+        <td class="u-name">${a.username}</td>
+        <td>${a.plan_name||'—'}</td>
+        <td class="mono" style="color:var(--mut)">${exp.toLocaleDateString('ar-EG')}</td>
+        <td><span class="badge ${dead?'no':'ok'}"><span class="d"></span>${dead?'منتهي':'نشط'}</span></td>
+      </tr>`;
+    });
+  }catch(e){ toast('err','تعذّر التحميل','فشل جلب سجلّ الحسابات'); }
+}
 
-                const data = await res.json();
-                btn.disabled = false;
-                btn.textContent = 'إنشاء الحساب';
+/* ---------- Nav scroll ---------- */
+document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>{
+  document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('on'));
+  a.classList.add('on');
+  const t=document.getElementById('sec-'+a.dataset.go);
+  if(t) t.scrollIntoView({behavior:'smooth',block:'start'});
+}));
 
-                if (data.success) {
-                    lastCreated = data.data;
-                    document.getElementById('resultUsername').textContent = data.data.username;
-                    document.getElementById('resultPassword').textContent = data.data.password;
-                    document.getElementById('resultPlan').textContent = data.data.plan;
-                    document.getElementById('resultExpiry').textContent = new Date(data.data.expiry_date).toLocaleDateString('ar-EG');
-                    document.getElementById('createResult').classList.remove('hidden');
-                    loadStats();
-                    loadAccounts();
-                } else {
-                    alert('❌ ' + data.message);
-                }
-            } catch (error) {
-                btn.disabled = false;
-                btn.textContent = 'إنشاء الحساب';
-                alert('خطأ في الاتصال');
-            }
-        }
+/* ---------- Reveal ---------- */
+function revealAll(){
+  const io=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){ e.target.classList.add('in'); io.unobserve(e.target);} }),{threshold:.12});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+}
 
-        function copyCredentials() {
-            if (lastCreated) {
-                const text = `B.T.C VPN\nالمستخدم: ${lastCreated.username}\nكلمة المرور: ${lastCreated.password}\nالباقة: ${lastCreated.plan}\nالانتهاء: ${lastCreated.expiry_date}`;
-                navigator.clipboard.writeText(text).then(() => alert('✅ تم النسخ'));
-            }
-        }
+/* ---------- Enter key ---------- */
+document.addEventListener('keydown',e=>{
+  if(e.key==='Enter' && document.getElementById('loginScreen').style.display!=='none') doLogin();
+  if(e.key==='Escape') closeModal();
+});
 
-        async function loadAccounts() {
-            try {
-                const res = await fetch('/api/accounts', { 
-                    headers: { 'Authorization': `Bearer ${token}` } 
-                });
-                const data = await res.json();
-                const tbody = document.getElementById('accountsList');
-                const noAccounts = document.getElementById('noAccounts');
-                tbody.innerHTML = '';
-
-                if (!data.accounts || data.accounts.length === 0) {
-                    noAccounts.classList.remove('hidden');
-                    return;
-                }
-
-                noAccounts.classList.add('hidden');
-                data.accounts.forEach(acc => {
-                    const isExpired = new Date(acc.expiry_date) < new Date();
-                    const status = isExpired ? 'منتهي' : 'نشط';
-                    const statusColor = isExpired ? 'text-red-400 bg-red-500/10' : 'text-green-400 bg-green-500/10';
-                    
-                    tbody.innerHTML += `
-                        <tr class="hover:bg-gray-800/30">
-                            <td class="p-4 font-mono text-yellow-400">${acc.username}</td>
-                            <td class="p-4 text-blue-400">${acc.plan_name || 'غير محدد'}</td>
-                            <td class="p-4 text-gray-300">${new Date(acc.expiry_date).toLocaleDateString('ar-EG')}</td>
-                            <td class="p-4"><span class="px-3 py-1 rounded-full text-sm ${statusColor}">${status}</span></td>
-                        </tr>
-                    `;
-                });
-            } catch (error) {
-                console.error(error);
-            }
-        }
-
-        // Enter key
-        document.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') {
-                if (!document.getElementById('loginScreen').classList.contains('hidden')) {
-                    doLogin();
-                }
-            }
-        });
-    </script>
+/* ---------- init ---------- */
+if(token) verify();
+</script>
 </body>
 </html>
