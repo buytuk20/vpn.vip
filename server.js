@@ -1,471 +1,616 @@
-// ============================================
-// B.T.C VPN — الخادم الاحترافي مع Firebase
-// طبقة V2Ray + مولّد إعداد + إدارة كاملة
-// ============================================
-const express = require('express');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>B.T.C VPN — وحدة التحكم</title>
+<script>(function(){try{if(localStorage.getItem('btc_theme')==='light')document.documentElement.setAttribute('data-theme','light');}catch(e){}})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#08080c; --bg2:#0d0d13; --surf:#121219; --surf2:#17171f; --surf3:#1d1d27;
+  --gold:#e0b53c; --gold-b:#ffd86b; --gold-d:#7a651c;
+  --cream:#ece7da; --mut:#837f74; --mut2:#56534c; --on-gold:#1a1407;
+  --line:rgba(224,181,60,.14); --line2:rgba(255,255,255,.06);
+  --green:#5fd38a; --red:#f0736e; --blue:#6fb0f5; --violet:#b58cf0; --cyan:#56d3d3;
+  --inp-focus:#0c0c12; --big-a:#1c1708; --big-b:#100f14; --panel-a:#13131b; --panel-b:#0a0a0f; --modal-a:#16161e; --modal-b:#0c0c11;
+  --r2:22px; --shadow:0 24px 60px -20px rgba(0,0,0,.8);
+  --glow:0 0 0 1px var(--line), 0 18px 50px -24px rgba(224,181,60,.45);
+}
+[data-theme="light"]{
+  --bg:#ece5d6; --bg2:#f4eee1; --surf:#fbf8f1; --surf2:#efe8d9; --surf3:#e6ddca;
+  --gold:#8a6510; --gold-b:#b07f15; --gold-d:#c79a2c;
+  --cream:#211c13; --mut:#6c6453; --mut2:#9b927f; --on-gold:#fdfaf2;
+  --line:rgba(120,90,20,.16); --line2:rgba(50,38,12,.08);
+  --green:#1d8a4b; --red:#c2392f; --blue:#2361a6; --violet:#6a3d9e; --cyan:#138a8a;
+  --inp-focus:#ffffff; --big-a:#f1e2bd; --big-b:#fbf8f1; --panel-a:#fdfbf5; --panel-b:#f1ebdd; --modal-a:#fefcf6; --modal-b:#f3ecdd;
+  --shadow:0 18px 44px -22px rgba(90,66,18,.42);
+  --glow:0 0 0 1px var(--line), 0 16px 40px -24px rgba(150,110,20,.4);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{font-family:'IBM Plex Sans Arabic',sans-serif;color:var(--cream);background:var(--bg);-webkit-font-smoothing:antialiased;overflow-x:hidden;transition:background .4s ease,color .4s ease}
+body::before{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;transition:background .4s ease;background:radial-gradient(900px 600px at 88% -8%,color-mix(in srgb,var(--gold) 16%,transparent),transparent 60%),radial-gradient(700px 500px at -6% 108%,color-mix(in srgb,var(--blue) 10%,transparent),transparent 60%),linear-gradient(180deg,color-mix(in srgb,var(--bg) 92%,#000),var(--bg) 70%)}
+[data-theme="light"] body::before{background:radial-gradient(900px 600px at 88% -8%,color-mix(in srgb,var(--gold) 24%,transparent),transparent 60%),radial-gradient(700px 500px at -6% 108%,color-mix(in srgb,var(--blue) 14%,transparent),transparent 60%),linear-gradient(180deg,#f3ecdd,#e8e0cf 70%)}
+body::after{content:"";position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.4;mix-blend-mode:overlay;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")}
+.grid-veil{position:fixed;inset:0;z-index:0;pointer-events:none;opacity:.32;background-image:linear-gradient(var(--line2) 1px,transparent 1px),linear-gradient(90deg,var(--line2) 1px,transparent 1px);background-size:46px 46px;mask-image:radial-gradient(circle at 50% 30%,#000,transparent 78%)}
+.mono{font-family:'JetBrains Mono',monospace}.disp{font-family:'Cairo',sans-serif}
+.app{position:relative;z-index:1;display:grid;grid-template-columns:268px 1fr;min-height:100vh}
+.side{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:26px 18px;border-inline-start:1px solid var(--line);background:linear-gradient(180deg,color-mix(in srgb,var(--surf) 70%,transparent),color-mix(in srgb,var(--bg) 40%,transparent));backdrop-filter:blur(8px);overflow-y:auto}
+.brand{display:flex;align-items:center;gap:13px;padding:6px 8px 22px}
+.mark{width:46px;height:46px;border-radius:13px;flex:none;position:relative;display:grid;place-items:center;color:var(--on-gold);font-family:'Cairo';font-weight:900;font-size:20px;background:conic-gradient(from 210deg,var(--gold-b),var(--gold),var(--gold-d),var(--gold-b));box-shadow:0 8px 22px -8px color-mix(in srgb,var(--gold) 70%,transparent),inset 0 1px 0 rgba(255,255,255,.4)}
+.mark::after{content:"";position:absolute;inset:-5px;border-radius:17px;border:1px solid var(--line);animation:ring 3.4s ease-in-out infinite}
+@keyframes ring{0%,100%{opacity:.35;transform:scale(1)}50%{opacity:.8;transform:scale(1.06)}}
+.brand b{font-family:'Cairo';font-weight:900;font-size:19px;color:var(--cream);display:block}
+.brand span{font-size:11px;color:var(--mut);letter-spacing:2px;text-transform:uppercase}
+.nav{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.nav .grp{font-size:10.5px;letter-spacing:1.5px;text-transform:uppercase;color:var(--mut2);padding:14px 14px 6px}
+.nav a{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;color:var(--mut);text-decoration:none;font-weight:600;font-size:14.5px;position:relative;transition:.25s cubic-bezier(.4,0,.2,1);cursor:pointer}
+.nav a .ic{width:19px;height:19px;flex:none;opacity:.8}
+.nav a:hover{color:var(--cream);background:var(--surf2);transform:translateX(-3px)}
+.nav a.on{color:var(--on-gold);background:linear-gradient(100deg,var(--gold-b),var(--gold));box-shadow:0 10px 24px -12px color-mix(in srgb,var(--gold) 80%,transparent)}
+.nav a.on .ic{opacity:1}
+.nav a.on::before{content:"";position:absolute;inset-inline-start:-18px;top:9px;bottom:9px;width:3px;border-radius:3px;background:var(--gold-b)}
+.nav a.admin-only{display:none}
+body.is-admin .nav a.admin-only{display:flex}
+.side-foot{margin-top:auto;padding-top:18px;border-top:1px solid var(--line2)}
+.me{display:flex;align-items:center;gap:11px;padding:10px;border-radius:13px;background:var(--surf2);border:1px solid var(--line2)}
+.me .av{width:38px;height:38px;border-radius:11px;flex:none;display:grid;place-items:center;font-family:'Cairo';font-weight:900;color:var(--on-gold);background:linear-gradient(135deg,var(--gold-b),var(--gold))}
+.me .who{min-width:0}
+.me .who b{display:block;font-size:13.5px;color:var(--cream);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.me .who small{font-size:11px;color:var(--mut)}
+.logout{margin-top:10px;width:100%;display:flex;align-items:center;justify-content:center;gap:8px;padding:11px;border-radius:12px;border:1px solid color-mix(in srgb,var(--red) 30%,transparent);background:color-mix(in srgb,var(--red) 7%,transparent);color:var(--red);font-weight:600;font-size:13.5px;cursor:pointer;transition:.2s}
+.logout:hover{background:color-mix(in srgb,var(--red) 16%,transparent);border-color:color-mix(in srgb,var(--red) 50%,transparent);transform:translateY(-1px)}
+.main{min-width:0;display:flex;flex-direction:column}
+.top{position:sticky;top:0;z-index:20;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 34px;border-bottom:1px solid var(--line2);background:linear-gradient(180deg,color-mix(in srgb,var(--bg) 92%,transparent),color-mix(in srgb,var(--bg) 60%,transparent));backdrop-filter:blur(10px)}
+.greet h2{font-family:'Cairo';font-weight:800;font-size:21px;color:var(--cream)}
+.greet h2 em{font-style:normal;color:var(--gold-b)}
+.greet p{font-size:12.5px;color:var(--mut);margin-top:2px}
+.top-r{display:flex;align-items:center;gap:12px}
+.clock{font-family:'JetBrains Mono';font-size:13px;color:var(--mut);background:var(--surf2);border:1px solid var(--line2);padding:8px 13px;border-radius:11px}
+.pill{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;color:var(--green);background:color-mix(in srgb,var(--green) 8%,transparent);border:1px solid color-mix(in srgb,var(--green) 25%,transparent);padding:8px 13px;border-radius:30px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:pulse 1.8s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 color-mix(in srgb,var(--green) 55%,transparent)}70%{box-shadow:0 0 0 8px color-mix(in srgb,var(--green) 0%,transparent)}100%{box-shadow:0 0 0 0 color-mix(in srgb,var(--green) 0%,transparent)}}
+.theme-toggle{width:42px;height:42px;border-radius:12px;border:1px solid var(--line2);background:var(--surf2);color:var(--gold-b);cursor:pointer;display:grid;place-items:center;transition:.25s}
+.theme-toggle:hover{border-color:var(--line);transform:rotate(-12deg) scale(1.05)}
+.theme-toggle svg{width:20px;height:20px}
+.theme-toggle .ic-moon{display:none}
+[data-theme="light"] .theme-toggle .ic-sun{display:none}
+[data-theme="light"] .theme-toggle .ic-moon{display:block}
+.content{padding:30px 34px 70px;display:flex;flex-direction:column;gap:26px}
+.bento{display:grid;grid-template-columns:1.5fr 1fr 1fr 1fr;grid-template-rows:auto auto;gap:16px}
+.card{position:relative;overflow:hidden;border-radius:var(--r2);border:1px solid var(--line2);background:linear-gradient(160deg,var(--surf),var(--bg2));padding:22px;transition:transform .3s cubic-bezier(.2,.8,.2,1),border-color .3s,box-shadow .3s,background .4s}
+.card:hover{transform:translateY(-4px);border-color:var(--line);box-shadow:var(--shadow)}
+.card .glow{position:absolute;width:160px;height:160px;border-radius:50%;filter:blur(46px);opacity:.5;top:-40px;inset-inline-end:-30px;pointer-events:none}
+.card .lab{font-size:12.5px;color:var(--mut);font-weight:600;letter-spacing:.4px}
+.card .num{font-family:'Cairo';font-weight:900;font-size:38px;line-height:1;margin-top:14px;color:var(--cream)}
+.card .ic2{position:absolute;bottom:18px;inset-inline-end:20px;width:42px;height:42px;border-radius:12px;display:grid;place-items:center;background:var(--surf3);border:1px solid var(--line2);font-size:20px}
+.card.big{grid-row:span 2;display:flex;flex-direction:column;justify-content:space-between;background:linear-gradient(155deg,var(--big-a),var(--big-b) 70%);border-color:var(--line)}
+.card.big .num{font-size:56px;color:var(--gold-b);text-shadow:0 0 30px color-mix(in srgb,var(--gold) 35%,transparent)}
+.card.big .sub{font-size:12.5px;color:var(--mut);margin-top:6px}
+.card.big .bars{display:flex;gap:5px;align-items:flex-end;height:46px;margin-top:18px}
+.card.big .bars i{flex:1;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--gold-b),var(--gold-d));opacity:.85;animation:grow .9s ease both}
+@keyframes grow{from{height:0!important}}
+.self-topup{margin-top:16px;align-self:flex-start;display:inline-flex;align-items:center;gap:8px;padding:10px 17px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--gold) 12%,transparent);color:var(--gold-b);font-family:'Cairo';font-weight:800;font-size:13px;cursor:pointer;transition:.25s;position:relative;overflow:hidden}
+.self-topup:hover{background:color-mix(in srgb,var(--gold) 22%,transparent);transform:translateY(-2px);box-shadow:0 10px 22px -12px color-mix(in srgb,var(--gold) 70%,transparent)}
+.self-topup .plus{position:relative;z-index:1;display:inline-grid;place-items:center;width:19px;height:19px;border-radius:6px;background:var(--gold);color:var(--on-gold);font-size:14px;line-height:1;animation:popplus 2.4s ease-in-out infinite}
+.self-topup span.lbl{position:relative;z-index:1}
+@keyframes popplus{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
+.panel{border-radius:var(--r2);border:1px solid var(--line2);background:linear-gradient(160deg,var(--surf),var(--bg2));overflow:hidden;transition:background .4s}
+.panel.admin-only{display:none}
+body.is-admin .panel.admin-only{display:block}
+.panel-h{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px 24px;border-bottom:1px solid var(--line2);flex-wrap:wrap}
+.panel-h h3{font-family:'Cairo';font-weight:800;font-size:18px;display:flex;align-items:center;gap:10px}
+.panel-h h3 .tag{width:8px;height:22px;border-radius:4px;background:linear-gradient(180deg,var(--gold-b),var(--gold))}
+.panel-h .hint{font-size:12px;color:var(--mut)}
+.panel-b{padding:24px}
+.form{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.field{display:flex;flex-direction:column;gap:8px}
+.field.full{grid-column:1/-1}
+.field label{font-size:12.5px;color:var(--mut);font-weight:600}
+.inp,.sel,.ta{width:100%;padding:13px 15px;border-radius:13px;border:1px solid var(--line2);background:var(--bg2);color:var(--cream);font-family:inherit;font-size:14.5px;transition:.2s;outline:none}
+.ta{resize:vertical;min-height:74px;font-family:'JetBrains Mono',monospace;font-size:13px}
+.inp::placeholder,.ta::placeholder{color:var(--mut2)}
+.inp:focus,.sel:focus,.ta:focus{border-color:var(--gold);box-shadow:0 0 0 3px color-mix(in srgb,var(--gold) 14%,transparent);background:var(--inp-focus)}
+.sel{appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' fill='none' stroke='%23837f74' stroke-width='2'%3E%3Cpath d='M3 5l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:left 15px center}
+.sel option{background:var(--surf);color:var(--cream)}
+.check{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;font-size:13.5px;color:var(--mut)}
+.check input{display:none}
+.check .box{width:20px;height:20px;border-radius:7px;border:1.5px solid var(--line);display:grid;place-items:center;transition:.2s;flex:none}
+.check input:checked + .box{background:linear-gradient(135deg,var(--gold-b),var(--gold));border-color:transparent}
+.check .box svg{opacity:0;transition:.2s}
+.check input:checked + .box svg{opacity:1}
+.actions{display:flex;align-items:center;gap:14px;margin-top:6px;flex-wrap:wrap}
+.btn{position:relative;overflow:hidden;border:none;cursor:pointer;font-family:'Cairo';font-weight:800;padding:14px 30px;border-radius:13px;font-size:15px;color:var(--on-gold);background:linear-gradient(100deg,var(--gold-b),var(--gold));box-shadow:0 14px 30px -14px color-mix(in srgb,var(--gold) 80%,transparent);transition:transform .2s,box-shadow .2s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 18px 36px -14px color-mix(in srgb,var(--gold) 90%,transparent)}
+.btn:active{transform:translateY(0)}
+.btn::after{content:"";position:absolute;top:0;inset-inline-start:-120%;width:60%;height:100%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.5),transparent);transform:skewX(-18deg);transition:.6s}
+.btn:hover::after{inset-inline-start:130%}
+.btn:disabled{opacity:.6;cursor:wait;transform:none}
+.btn.ghost{background:var(--surf3);color:var(--cream);box-shadow:none;border:1px solid var(--line2)}
+.btn.ghost:hover{border-color:var(--line);background:var(--surf2)}
+.btn.sm{padding:8px 14px;font-size:12.5px;border-radius:10px}
+.btn.danger{background:color-mix(in srgb,var(--red) 12%,transparent);color:var(--red);box-shadow:none;border:1px solid color-mix(in srgb,var(--red) 30%,transparent)}
+.btn.danger:hover{background:color-mix(in srgb,var(--red) 22%,transparent)}
+.btn.blue{background:color-mix(in srgb,var(--blue) 12%,transparent);color:var(--blue);box-shadow:none;border:1px solid color-mix(in srgb,var(--blue) 30%,transparent)}
+.btn.blue:hover{background:color-mix(in srgb,var(--blue) 22%,transparent)}
+.btn.green{background:color-mix(in srgb,var(--green) 12%,transparent);color:var(--green);box-shadow:none;border:1px solid color-mix(in srgb,var(--green) 30%,transparent)}
+.btn.green:hover{background:color-mix(in srgb,var(--green) 22%,transparent)}
+.btn.cyan{background:color-mix(in srgb,var(--cyan) 12%,transparent);color:var(--cyan);box-shadow:none;border:1px solid color-mix(in srgb,var(--cyan) 30%,transparent)}
+.btn.cyan:hover{background:color-mix(in srgb,var(--cyan) 22%,transparent)}
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;min-width:760px}
+thead th{font-size:11.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:600;text-align:start;padding:14px 24px;background:var(--bg2)}
+tbody td{padding:14px 24px;border-top:1px solid var(--line2);font-size:14px;vertical-align:middle}
+tbody tr{transition:background .2s}
+tbody tr:hover{background:var(--surf2)}
+.u-name{font-family:'JetBrains Mono';font-weight:700;color:var(--gold-b)}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:5px 12px;border-radius:30px;font-size:12px;font-weight:700}
+.badge.ok{color:var(--green);background:color-mix(in srgb,var(--green) 10%,transparent);border:1px solid color-mix(in srgb,var(--green) 25%,transparent)}
+.badge.no{color:var(--red);background:color-mix(in srgb,var(--red) 10%,transparent);border:1px solid color-mix(in srgb,var(--red) 25%,transparent)}
+.badge.gold{color:var(--gold-b);background:color-mix(in srgb,var(--gold) 10%,transparent);border:1px solid var(--line)}
+.badge.blue{color:var(--blue);background:color-mix(in srgb,var(--blue) 10%,transparent);border:1px solid color-mix(in srgb,var(--blue) 25%,transparent)}
+.badge.cyan{color:var(--cyan);background:color-mix(in srgb,var(--cyan) 10%,transparent);border:1px solid color-mix(in srgb,var(--cyan) 25%,transparent)}
+.badge .d{width:7px;height:7px;border-radius:50%;background:currentColor}
+.row-act{display:flex;gap:7px;flex-wrap:wrap}
+.empty{padding:54px 20px;text-align:center;color:var(--mut)}
+.empty .e-ic{font-size:38px;opacity:.5}
+.empty p{margin-top:10px;font-size:14px}
+/* ===== محرك: حقول تظهر بحركة ===== */
+.engine-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:6px}
+.engine-grid .field{margin:0}
+.vgroup{display:grid;grid-template-columns:1fr 1fr;gap:14px;overflow:hidden;max-height:0;opacity:0;transition:max-height .45s cubic-bezier(.4,0,.2,1),opacity .35s ease,margin .35s ease;margin-top:0}
+.vgroup.show{max-height:1200px;opacity:1;margin-top:14px}
+.vgroup .sec{margin:0}
+/* ===== معاينة config ===== */
+.preview-wrap{position:relative;margin-top:14px;border:1px solid var(--line);border-radius:16px;overflow:hidden;background:#0a0a0e}
+[data-theme="light"] .preview-wrap{background:#1b1710}
+.preview-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 14px;background:color-mix(in srgb,var(--gold) 8%,transparent);border-bottom:1px solid var(--line)}
+.preview-bar .ttl{display:flex;align-items:center;gap:9px;font-family:'Cairo';font-weight:800;font-size:13px;color:var(--gold-b)}
+.preview-bar .live{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--green);font-weight:700}
+.preview-bar .live .d{width:7px;height:7px;border-radius:50%;background:var(--green);animation:pulse 1.6s infinite}
+.preview-code{margin:0;padding:16px;max-height:340px;overflow:auto;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.7;color:#cdd6c9;white-space:pre;tab-size:2;direction:ltr;text-align:left}
+.preview-code .k{color:var(--cyan)}.preview-code .s{color:var(--gold-b)}.preview-code .n{color:var(--blue)}.preview-code .b{color:var(--violet)}
+.preview-code.flash{animation:flashbg .6s ease}
+@keyframes flashbg{0%{background:color-mix(in srgb,var(--gold) 14%,transparent)}100%{background:transparent}}
+.toasts{position:fixed;top:20px;inset-inline-start:50%;transform:translateX(50%);z-index:600;display:flex;flex-direction:column;gap:10px;width:min(380px,92vw)}
+.toast{display:flex;align-items:flex-start;gap:12px;padding:14px 16px;border-radius:14px;background:linear-gradient(160deg,var(--surf3),var(--surf));border:1px solid var(--line2);box-shadow:var(--shadow);position:relative;overflow:hidden;animation:tin .4s cubic-bezier(.2,.9,.3,1.2) both}
+.toast.out{animation:tout .35s ease forwards}
+@keyframes tin{from{opacity:0;transform:translateY(-16px) scale(.96)}to{opacity:1;transform:none}}
+@keyframes tout{to{opacity:0;transform:translateY(-12px) scale(.97)}}
+.toast .t-ic{width:30px;height:30px;border-radius:9px;flex:none;display:grid;place-items:center;font-size:16px}
+.toast.ok .t-ic{background:color-mix(in srgb,var(--green) 15%,transparent);color:var(--green)}
+.toast.err .t-ic{background:color-mix(in srgb,var(--red) 15%,transparent);color:var(--red)}
+.toast.info .t-ic{background:color-mix(in srgb,var(--blue) 15%,transparent);color:var(--blue)}
+.toast .t-tx b{display:block;font-size:13.5px;color:var(--cream);margin-bottom:2px}
+.toast .t-tx span{font-size:12.5px;color:var(--mut);line-height:1.5}
+.toast .bar{position:absolute;bottom:0;inset-inline-start:0;height:3px;background:var(--gold);animation:shrink 3.6s linear forwards}
+.toast.ok .bar{background:var(--green)}.toast.err .bar{background:var(--red)}.toast.info .bar{background:var(--blue)}
+@keyframes shrink{from{width:100%}to{width:0}}
+.backdrop{position:fixed;inset:0;z-index:500;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(4,4,7,.72);backdrop-filter:blur(7px)}
+[data-theme="light"] .backdrop{background:rgba(60,48,20,.42)}
+.backdrop.show{display:flex;animation:fade .25s ease}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{width:min(680px,95vw);max-height:92vh;overflow-y:auto;border-radius:var(--r2);border:1px solid var(--line);background:linear-gradient(165deg,var(--modal-a),var(--modal-b));box-shadow:var(--glow);animation:pop .35s cubic-bezier(.2,.9,.3,1.3) both}
+@keyframes pop{from{opacity:0;transform:scale(.9) translateY(14px)}to{opacity:1;transform:none}}
+.modal-h{padding:24px 26px 18px;border-bottom:1px solid var(--line2);display:flex;align-items:center;gap:14px;position:sticky;top:0;background:linear-gradient(165deg,var(--modal-a),color-mix(in srgb,var(--modal-a) 80%,transparent));backdrop-filter:blur(6px);z-index:2}
+.modal-h .chk{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:22px;flex:none}
+.modal-h .chk.ok{background:color-mix(in srgb,var(--green) 12%,transparent);border:1px solid color-mix(in srgb,var(--green) 30%,transparent);color:var(--green)}
+.modal-h .chk.warn{background:color-mix(in srgb,var(--red) 12%,transparent);border:1px solid color-mix(in srgb,var(--red) 30%,transparent);color:var(--red)}
+.modal-h .chk.edit{background:color-mix(in srgb,var(--blue) 12%,transparent);border:1px solid color-mix(in srgb,var(--blue) 30%,transparent);color:var(--blue)}
+.modal-h .chk.gold{background:color-mix(in srgb,var(--gold) 12%,transparent);border:1px solid var(--line);color:var(--gold-b)}
+.modal-h .chk.cyan{background:color-mix(in srgb,var(--cyan) 12%,transparent);border:1px solid color-mix(in srgb,var(--cyan) 30%,transparent);color:var(--cyan)}
+.modal-h h4{font-family:'Cairo';font-weight:800;font-size:18px}
+.modal-h p{font-size:12.5px;color:var(--mut);margin-top:2px}
+.modal-h .hbadge{margin-inline-start:auto}
+.modal-b{padding:22px 26px;display:grid;gap:14px}
+.modal-b .form{gap:14px}
+.sec{border:1px solid var(--line2);border-radius:16px;padding:16px;background:color-mix(in srgb,var(--bg2) 60%,transparent)}
+.sec-t{font-family:'Cairo';font-weight:800;font-size:13.5px;color:var(--gold-b);margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.sec-t .b{width:6px;height:16px;border-radius:3px;background:var(--gold)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-radius:12px;background:var(--bg2);border:1px solid var(--line2)}
+.row .k{font-size:12px;color:var(--mut);font-weight:600}
+.row .v{font-family:'JetBrains Mono';font-weight:700;font-size:14.5px;color:var(--cream);display:flex;align-items:center;gap:9px}
+.row .v.gold{color:var(--gold-b)}.row .v.grn{color:var(--green)}
+.cp{width:30px;height:30px;border-radius:9px;border:1px solid var(--line2);background:var(--surf3);color:var(--mut);cursor:pointer;display:grid;place-items:center;transition:.2s;flex:none}
+.cp:hover{color:var(--gold-b);border-color:var(--line)}
+.inline{display:flex;gap:8px;align-items:flex-end}
+.inline .field{flex:1}
+.inline .btn{flex:none;height:48px}
+.devlist{display:flex;flex-direction:column;gap:8px;margin-top:4px}
+.dev{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 13px;border-radius:12px;background:var(--bg2);border:1px solid var(--line2)}
+.dev .di{min-width:0}
+.dev .di b{font-family:'JetBrains Mono';font-size:12.5px;color:var(--cream);display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dev .di small{font-size:11px;color:var(--mut)}
+.dev .da{display:flex;gap:6px;flex:none}
+.modal-f{padding:0 26px 24px;display:flex;gap:10px}
+.modal-f .btn{flex:1}
+.reveal{opacity:0;transform:translateY(22px);transition:opacity .6s ease,transform .6s cubic-bezier(.2,.8,.2,1)}
+.reveal.in{opacity:1;transform:none}
+.login{position:fixed;inset:0;z-index:700;display:flex;align-items:center;justify-content:center;padding:20px}
+.login-box{width:min(420px,94vw);border-radius:var(--r2);border:1px solid var(--line);background:linear-gradient(165deg,var(--panel-a),var(--panel-b));box-shadow:var(--glow);padding:38px 34px}
+.login-box .mark{width:62px;height:62px;border-radius:18px;font-size:26px;margin:0 auto 18px}
+.login-box h1{font-family:'Cairo';font-weight:900;font-size:30px;text-align:center;color:var(--cream)}
+.login-box h1 b{color:var(--gold-b)}
+.login-box .sub{text-align:center;color:var(--mut);font-size:13px;margin:6px 0 28px;letter-spacing:1px}
+.login-box .field{margin-bottom:15px}
+.login-box .btn{width:100%;margin-top:8px}
+.spin{width:18px;height:18px;border:2.5px solid color-mix(in srgb,var(--on-gold) 30%,transparent);border-top-color:var(--on-gold);border-radius:50%;display:inline-block;animation:sp .7s linear infinite;vertical-align:-3px;margin-inline-end:8px}
+.spin.w{border-color:color-mix(in srgb,currentColor 30%,transparent);border-top-color:currentColor}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media(max-width:980px){.bento{grid-template-columns:1fr 1fr}.card.big{grid-row:auto;grid-column:1/-1}.engine-grid{grid-template-columns:1fr 1fr}.vgroup{grid-template-columns:1fr}}
+@media(max-width:880px){
+  .app{grid-template-columns:1fr}
+  .side{position:sticky;height:auto;flex-direction:row;align-items:center;gap:12px;padding:14px 16px;flex-wrap:wrap}
+  .brand{padding:0;flex:1}.nav,.side-foot .me{display:none}
+  .side-foot{margin:0;border:0;padding:0}.logout{margin:0;width:auto;padding:9px 16px}
+  .top{padding:16px 18px}.content{padding:20px 16px 60px}
+  .bento{grid-template-columns:1fr 1fr}.card.big .num{font-size:44px}.form{grid-template-columns:1fr}.clock{display:none}
+}
+</style>
+</head>
+<body>
+<div class="grid-veil"></div>
 
-let admin;
-try {
-    admin = require('firebase-admin');
-    if (!admin.apps.length) {
-        const privateKey = (process.env.FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                projectId: process.env.FIREBASE_PROJECT_ID,
-                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                privateKey: privateKey
-            })
-        });
-        console.log('✅ Firebase تم ربطه بنجاح');
-    }
-} catch (error) {
-    console.error('❌ خطأ في Firebase:', error.message);
-    process.exit(1);
+<div class="login" id="loginScreen">
+  <div class="login-box">
+    <div class="mark disp">B</div>
+    <h1 class="disp">B.T.C <b>VPN</b></h1>
+    <p class="sub">وحدة التحكم الاحترافية</p>
+    <div class="field"><label>اسم المستخدم</label><input class="inp" id="username" type="text" placeholder="أدخل اسم المستخدم" autocomplete="username"></div>
+    <div class="field"><label>كلمة المرور</label><input class="inp" id="password" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+    <button class="btn" id="loginBtn" onclick="doLogin()">تسجيل الدخول</button>
+  </div>
+</div>
+
+<div class="app" id="app" style="display:none">
+  <aside class="side">
+    <div class="brand"><div class="mark disp">B</div><div><b class="disp">B.T.C VPN</b><span>Control Deck</span></div></div>
+    <nav class="nav">
+      <a class="on" data-go="stats"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 13h8V3H3zM13 21h8V11h-8zM3 21h8v-6H3zM13 3v6h8V3z"/></svg>لوحة القيادة</a>
+      <a data-go="create"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>إصدار حساب</a>
+      <a data-go="accounts"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>الحسابات</a>
+      <div class="grp admin-only">الإدارة</div>
+      <a class="admin-only" data-go="users"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>الموزّعون</a>
+      <a class="admin-only" data-go="plans"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7h-3V5a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2v2H4a1 1 0 0 0-1 1v11a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a1 1 0 0 0-1-1z"/></svg>الباقات</a>
+      <a class="admin-only" data-go="servers"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="7" rx="2"/><rect x="2" y="14" width="20" height="7" rx="2"/><path d="M6 7h.01M6 18h.01"/></svg>السيرفرات</a>
+    </nav>
+    <div class="side-foot">
+      <div class="me"><div class="av disp" id="meAv">A</div><div class="who"><b id="meName">—</b><small id="meRole">—</small></div></div>
+      <button class="logout" onclick="doLogout()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>تسجيل الخروج</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <header class="top">
+      <div class="greet"><h2 class="disp" id="greet">مرحباً، <em id="greetName">—</em></h2><p id="greetSub">إليك نظرة عامة على شبكتك الآن</p></div>
+      <div class="top-r">
+        <button class="theme-toggle" id="themeBtn" onclick="toggleTheme()" title="تبديل المظهر">
+          <svg class="ic-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+          <svg class="ic-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+        <div class="clock mono" id="clock">--:--:--</div>
+        <div class="pill"><span class="dot"></span>الخادم متصل</div>
+      </div>
+    </header>
+
+    <div class="content">
+      <section class="bento reveal" id="sec-stats">
+        <div class="card big">
+          <div class="glow" style="background:var(--gold)"></div>
+          <div>
+            <div class="lab">الرصيد المتاح للإصدار</div>
+            <div class="num" id="sCredits">0</div>
+            <div class="sub">وحدة رصيد • قابلة للتحويل بين الموزّعين</div>
+            <button class="self-topup" id="selfTopupBtn" style="display:none" onclick="selfCreditForm()"><span class="plus">＋</span><span class="lbl">شحن رصيدي</span></button>
+          </div>
+          <div class="bars" id="bars"></div>
+        </div>
+        <div class="card"><div class="glow" style="background:var(--blue)"></div><div class="lab">إجمالي الحسابات</div><div class="num" id="sTotal">0</div><div class="ic2">👥</div></div>
+        <div class="card"><div class="glow" style="background:var(--green)"></div><div class="lab">نشطة الآن</div><div class="num" id="sActive" style="color:var(--green)">0</div><div class="ic2">⚡</div></div>
+        <div class="card"><div class="glow" style="background:var(--gold)"></div><div class="lab">مجمّدة</div><div class="num" id="sFrozen" style="color:var(--gold-b)">0</div><div class="ic2">🔒</div></div>
+        <div class="card" style="grid-column:span 2"><div class="glow" style="background:var(--red)"></div><div class="lab">منتهية / محظورة</div><div class="num" id="sExpired" style="color:var(--red)">0</div><div class="ic2">⏳</div></div>
+      </section>
+
+      <section class="panel reveal" id="sec-create">
+        <div class="panel-h"><h3 class="disp"><span class="tag"></span>إصدار حساب جديد</h3><span class="hint">تُخصم قيمة الباقة (التكلفة) من رصيدك</span></div>
+        <div class="panel-b">
+          <div class="form">
+            <div class="field"><label>اسم المستخدم</label><input class="inp" id="accUser" placeholder="اتركه فارغاً للتوليد العشوائي"></div>
+            <div class="field"><label>كلمة المرور</label><input class="inp" id="accPass" placeholder="اتركها فارغة للتوليد العشوائي"></div>
+            <div class="field full"><label>نوع الباقة</label><select class="sel" id="accPlan"><option value="">جارٍ تحميل الباقات…</option></select></div>
+            <div class="field full"><label class="check"><input type="checkbox" id="isRandom" checked><span class="box"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span>توليد بيانات عشوائية آمنة تلقائياً</label></div>
+          </div>
+          <div class="actions"><button class="btn" id="createBtn" onclick="createAccount()">إصدار الحساب</button><button class="btn ghost" onclick="resetForm()">مسح الحقول</button></div>
+        </div>
+      </section>
+
+      <section class="panel reveal" id="sec-accounts">
+        <div class="panel-h"><h3 class="disp"><span class="tag"></span>سجلّ الحسابات</h3><button class="btn ghost sm" onclick="loadAccounts()">↻ تحديث</button></div>
+        <div class="tbl-wrap"><table><thead><tr><th>المستخدم</th><th>الباقة</th><th>الواي فاي</th><th>تاريخ الانتهاء</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody id="accBody"></tbody></table><div class="empty" id="emptyAcc" style="display:none"><div class="e-ic">📭</div><p>لا توجد حسابات مُصدَرة بعد</p></div></div>
+      </section>
+
+      <section class="panel admin-only reveal" id="sec-users">
+        <div class="panel-h"><h3 class="disp"><span class="tag"></span>إدارة الموزّعين</h3><button class="btn sm" onclick="userForm()">+ موزّع جديد</button></div>
+        <div class="tbl-wrap"><table><thead><tr><th>المستخدم</th><th>الدور</th><th>الرصيد</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody id="usersBody"></tbody></table><div class="empty" id="emptyUsers" style="display:none"><div class="e-ic">🧑‍</div><p>لا يوجد موزّعون</p></div></div>
+      </section>
+
+      <section class="panel admin-only reveal" id="sec-plans">
+        <div class="panel-h"><h3 class="disp"><span class="tag"></span>إدارة الباقات</h3><span class="hint">التكلفة = ما يُخصم من الموزّع • البيع = سعر التجزئة المقترح</span><button class="btn sm" onclick="planForm()">+ باقة جديدة</button></div>
+        <div class="tbl-wrap"><table><thead><tr><th>الباقة</th><th>المدة</th><th>البيانات</th><th>التكلفة</th><th>البيع</th><th>النوع</th><th>إجراءات</th></tr></thead><tbody id="plansBody"></tbody></table><div class="empty" id="emptyPlans" style="display:none"><div class="e-ic">📦</div><p>لا توجد باقات</p></div></div>
+      </section>
+
+      <section class="panel admin-only reveal" id="sec-servers">
+        <div class="panel-h"><h3 class="disp"><span class="tag"></span>إدارة السيرفرات</h3><span class="hint">كل سيرفر يحمل محرّكه وإعداد V2Ray كاملاً</span><button class="btn sm" onclick="serverForm()">+ سيرفر جديد</button></div>
+        <div class="tbl-wrap"><table><thead><tr><th>الاسم</th><th>المحرّك</th><th>البروتوكول</th><th>النقل</th><th>البينج</th><th>الحالة</th><th>إجراءات</th></tr></thead><tbody id="serversBody"></tbody></table><div class="empty" id="emptySrv" style="display:none"><div class="e-ic">🛰️</div><p>لا توجد سيرفرات</p></div></div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="backdrop" id="backdrop"><div class="modal" id="modalResult">
+  <div class="modal-h"><div class="chk ok">✓</div><div><h4 class="disp">تم إصدار الحساب بنجاح</h4><p>احفظ البيانات أو انسخها لمشاركتها فوراً</p></div></div>
+  <div class="modal-b">
+    <div class="row"><span class="k">اسم المستخدم</span><span class="v gold"><span id="mUser"></span><button class="cp" onclick="cpOne('mUser')">⧉</button></span></div>
+    <div class="row"><span class="k">كلمة المرور</span><span class="v grn"><span id="mPass"></span><button class="cp" onclick="cpOne('mPass')">⧉</button></span></div>
+    <div class="row"><span class="k">الباقة</span><span class="v"><span id="mPlan"></span></span></div>
+    <div class="row"><span class="k">ينتهي في</span><span class="v"><span id="mExp"></span></span></div>
+  </div>
+  <div class="modal-f"><button class="btn" onclick="copyAll()">⧉ نسخ الكل</button><button class="btn ghost" onclick="hide('backdrop')">إغلاق</button></div>
+</div></div>
+<div class="backdrop" id="dynBackdrop"><div class="modal" id="dynModal"></div></div>
+<div class="backdrop" id="accBackdrop"><div class="modal" id="accModal"></div></div>
+<div class="backdrop" id="srvBackdrop"><div class="modal" id="srvModal"></div></div>
+
+<script>
+const API = location.origin;
+let token = localStorage.getItem('btc_token');
+let me = null, last = null, plansCache = [], currentAcc = null, srvDraft = null;
+
+/* ===== Theme ===== */
+function toggleTheme(){ const light=document.documentElement.getAttribute('data-theme')==='light'; if(light){document.documentElement.removeAttribute('data-theme');localStorage.setItem('btc_theme','dark');}else{document.documentElement.setAttribute('data-theme','light');localStorage.setItem('btc_theme','light');} }
+
+/* ===== Toast ===== */
+function toast(type,title,msg){ const ic={ok:'✓',err:'✕',info:'ℹ'}[type]||'ℹ'; const el=document.createElement('div'); el.className='toast '+type; el.innerHTML=`<div class="t-ic">${ic}</div><div class="t-tx"><b>${title}</b><span>${msg||''}</span></div><div class="bar"></div>`; document.getElementById('toasts').appendChild(el); setTimeout(()=>{el.classList.add('out');setTimeout(()=>el.remove(),350);},3800); }
+function hide(id){ document.getElementById(id).classList.remove('show'); }
+['backdrop','dynBackdrop','accBackdrop','srvBackdrop'].forEach(id=>document.getElementById(id).addEventListener('click',e=>{ if(e.target.id===id) hide(id); }));
+
+/* ===== Dynamic form / confirm ===== */
+function buildField(f){
+  if(f.type==='checkbox') return `<label class="check"><input type="checkbox" id="f_${f.key}" ${f.value?'checked':''} ${f.on?'onchange="'+f.on+'"':''}><span class="box"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span>${f.label}</label>`;
+  if(f.type==='select'){ const opts=(f.options||[]).map(o=>`<option value="${o.v}" ${String(o.v)===String(f.value)?'selected':''}>${o.label}</option>`).join(''); return `<div class="field ${f.full?'full':''}"><label>${f.label}</label><select class="sel" id="f_${f.key}" ${f.on?'onchange="'+f.on+'"':''}>${opts}</select></div>`; }
+  if(f.type==='textarea') return `<div class="field ${f.full?'full':''}"><label>${f.label}</label><textarea class="ta" id="f_${f.key}" placeholder="${f.placeholder||''}" ${f.on?'oninput="'+f.on+'"':''}>${f.value||''}</textarea></div>`;
+  return `<div class="field ${f.full?'full':''}"><label>${f.label}</label><input class="inp" id="f_${f.key}" type="${f.type||'text'}" value="${f.value??''}" placeholder="${f.placeholder||''}" ${f.on?'oninput="'+f.on+'"':''}></div>`;
+}
+function collectFields(fields){ const out={}; fields.forEach(f=>{ const el=document.getElementById('f_'+f.key); if(!el)return; if(f.type==='checkbox')out[f.key]=el.checked; else if(f.type==='number')out[f.key]=el.value===''?(f.def??0):Number(el.value); else out[f.key]=el.value.trim(); }); return out; }
+function openForm(opts){
+  const {title,sub,icon='edit',fields,submitLabel='حفظ',onSubmit,extra=''}=opts;
+  const grid=fields.some(f=>f.full)?'form':'';
+  const sym=icon==='warn'?'!':icon==='gold'?'＋':icon==='cyan'?'⚙':icon==='ok'?'✓':'✎';
+  document.getElementById('dynModal').innerHTML=`
+    <div class="modal-h"><div class="chk ${icon}">${sym}</div><div><h4 class="disp">${title}</h4><p>${sub||''}</p></div></div>
+    <div class="modal-b"><div class="${grid}">${fields.map(buildField).join('')}</div>${extra}</div>
+    <div class="modal-f"><button class="btn" id="dynSave">${submitLabel}</button><button class="btn ghost" onclick="hide('dynBackdrop')">إلغاء</button></div>`;
+  document.getElementById('dynBackdrop').classList.add('show');
+  document.getElementById('dynSave').onclick=async()=>{ const vals=collectFields(fields); const b=document.getElementById('dynSave'); b.disabled=true; b.innerHTML='<span class="spin"></span>جارٍ…'; try{ await onSubmit(vals); }finally{ b.disabled=false; b.textContent=submitLabel; } };
+}
+function confirmAction(title,msg,onYes){
+  document.getElementById('dynModal').innerHTML=`
+    <div class="modal-h"><div class="chk warn">!</div><div><h4 class="disp">${title}</h4><p>${msg}</p></div></div>
+    <div class="modal-f" style="padding-top:22px"><button class="btn danger" id="dynYes">نعم، تأكيد</button><button class="btn ghost" onclick="hide('dynBackdrop')">إلغاء</button></div>`;
+  document.getElementById('dynBackdrop').classList.add('show');
+  document.getElementById('dynYes').onclick=async()=>{ const b=document.getElementById('dynYes'); b.disabled=true; b.innerHTML='<span class="spin w"></span>…'; try{ await onYes(); }finally{ hide('dynBackdrop'); } };
 }
 
-const db = admin.firestore();
-const TS = admin.firestore.FieldValue;
-const app = express();
-const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'btc_vpn_secret_2026';
+/* ===== API ===== */
+async function api(path,body){ const opt={headers:{'Authorization':'Bearer '+token}}; if(body!==undefined){opt.method='POST';opt.headers['Content-Type']='application/json';opt.body=JSON.stringify(body);} const r=await fetch(API+path,opt); return r.json(); }
+async function apiDel(path){ const r=await fetch(API+path,{method:'DELETE',headers:{'Authorization':'Bearer '+token}}); return r.json(); }
+function rndPass(){ return Math.random().toString(36).slice(-8); }
 
-app.use(cors({ origin: '*' }));
-app.use(express.json({ limit: '2mb' }));
-app.use(express.urlencoded({ extended: true }));
-
-// ============================================
-// مولّد إعداد V2Ray (المصدر الوحيد للحقيقة)
-// يبني config.json صالحاً لـ v2fly / v2ray-core
-// ============================================
-function buildV2Config(s) {
-    const engine = (s.engine || 'v2ray');
-    if (engine !== 'v2ray') {
-        return { _engine: engine, _note: 'محرك غير مدعوم في المولّد الحالي — يُعالج في التطبيق' };
-    }
-    const protocol = (s.protocol || 'vmess');
-    const network = (s.network || 'ws');
-    const security = (s.security || 'tls');
-    const address = s.host || '';
-    const port = Number(s.port) || 443;
-    const uuid = s.uuid || '';
-    const sni = s.sni_hostname || s.host || '';
-    const path = s.path || '/';
-    const hostHeader = s.ws_host || sni;
-
-    // streamSettings حسب نوع النقل والأمان
-    const stream = { network: network, security: security === 'tls' ? 'tls' : 'none' };
-    if (security === 'tls') {
-        stream.tlsSettings = { serverName: sni, allowInsecure: !!s.allow_insecure };
-    }
-    if (network === 'ws') {
-        stream.wsSettings = { path: path, headers: hostHeader ? { Host: hostHeader } : {} };
-    } else if (network === 'grpc') {
-        stream.grpcSettings = { serviceName: s.grpc_service || 'TunService', multiMode: false };
-    } else if (network === 'h2') {
-        stream.h2Settings = { path: path, host: hostHeader ? [hostHeader] : [] };
-    } else if (network === 'tcp') {
-        stream.tcpSettings = { header: { type: s.tcp_type || 'none' } };
-    }
-
-    // outbound حسب البروتوكول
-    let outbound;
-    if (protocol === 'vmess') {
-        outbound = {
-            protocol: 'vmess',
-            settings: { vnext: [{ address, port, users: [{ id: uuid, alterId: Number(s.alter_id) || 0, security: s.vmess_security || 'auto' }] }] },
-            streamSettings: stream, tag: 'proxy'
-        };
-    } else if (protocol === 'vless') {
-        const user = { id: uuid, encryption: 'none' };
-        if (network === 'tcp' && security === 'tls' && s.flow) user.flow = s.flow; // xtls-rprx-vision
-        outbound = {
-            protocol: 'vless',
-            settings: { vnext: [{ address, port, users: [user] }] },
-            streamSettings: stream, tag: 'proxy'
-        };
-    } else { // trojan
-        outbound = {
-            protocol: 'trojan',
-            settings: { servers: [{ address, port, password: uuid || s.password || '' }] },
-            streamSettings: Object.assign({}, stream, { security: 'tls', tlsSettings: stream.tlsSettings || { serverName: sni } }),
-            tag: 'proxy'
-        };
-    }
-
-    return {
-        log: { loglevel: s.loglevel || 'warning' },
-        dns: { hosts: {}, servers: ['1.1.1.1', '8.8.8.8'] },
-        inbounds: [
-            { port: 10808, protocol: 'socks', listen: '127.0.0.1', settings: { auth: 'noauth', udp: true }, tag: 'socks-in' },
-            { port: 10809, protocol: 'http', listen: '127.0.0.1', tag: 'http-in' }
-        ],
-        outbounds: [
-            outbound,
-            { protocol: 'freedom', tag: 'direct', settings: { domainStrategy: 'UseIP' } },
-            { protocol: 'blackhole', tag: 'block' }
-        ],
-        routing: {
-            domainStrategy: 'AsIs',
-            rules: [
-                { type: 'field', ip: ['geoip:private'], outboundTag: 'direct' },
-                { type: 'field', domain: ['geosite:private'], outboundTag: 'direct' }
-            ]
-        }
-    };
+/* ===== V2Ray config builder (مرآة محلية للخادم — للمعاينة الحيّة) ===== */
+function buildV2Preview(s){
+  const engine=s.engine||'v2ray';
+  if(engine!=='v2ray') return {_engine:engine,_note:'محرك غير مدعوم في المولّد الحالي'};
+  const protocol=s.protocol||'vmess', network=s.network||'ws', security=s.security||'tls';
+  const address=s.host||'', port=Number(s.port)||443, uuid=s.uuid||'', sni=s.sni_hostname||s.host||'', path=s.path||'/', hostHeader=s.ws_host||sni;
+  const stream={network,security:security==='tls'?'tls':'none'};
+  if(security==='tls') stream.tlsSettings={serverName:sni,allowInsecure:!!s.allow_insecure};
+  if(network==='ws') stream.wsSettings={path,headers:hostHeader?{Host:hostHeader}:{}};
+  else if(network==='grpc') stream.grpcSettings={serviceName:s.grpc_service||'TunService',multiMode:false};
+  else if(network==='h2') stream.h2Settings={path,host:hostHeader?[hostHeader]:[]};
+  else if(network==='tcp') stream.tcpSettings={header:{type:s.tcp_type||'none'}};
+  let outbound;
+  if(protocol==='vmess') outbound={protocol:'vmess',settings:{vnext:[{address,port,users:[{id:uuid,alterId:Number(s.alter_id)||0,security:s.vmess_security||'auto'}]}]},streamSettings:stream,tag:'proxy'};
+  else if(protocol==='vless'){ const u={id:uuid,encryption:'none'}; if(network==='tcp'&&security==='tls'&&s.flow)u.flow=s.flow; outbound={protocol:'vless',settings:{vnext:[{address,port,users:[u]}]},streamSettings:stream,tag:'proxy'}; }
+  else outbound={protocol:'trojan',settings:{servers:[{address,port,password:uuid||s.password||''}]},streamSettings:Object.assign({},stream,{security:'tls',tlsSettings:stream.tlsSettings||{serverName:sni}}),tag:'proxy'};
+  return {log:{loglevel:s.loglevel||'warning'},dns:{hosts:{},servers:['1.1.1.1','8.8.8.8']},inbounds:[{port:10808,protocol:'socks',listen:'127.0.0.1',settings:{auth:'noauth',udp:true},tag:'socks-in'},{port:10809,protocol:'http',listen:'127.0.0.1',tag:'http-in'}],outbounds:[outbound,{protocol:'freedom',tag:'direct',settings:{domainStrategy:'UseIP'}},{protocol:'blackhole',tag:'block'}],routing:{domainStrategy:'AsIs',rules:[{type:'field',ip:['geoip:private'],outboundTag:'direct'},{type:'field',domain:['geosite:private'],outboundTag:'direct'}]}};
 }
-
-// ============================================
-// البيانات الافتراضية
-// ============================================
-async function seedData() {
-    try {
-        const adminRef = db.collection('users').doc('admin');
-        if (!(await adminRef.get()).exists) {
-            console.log('🌱 إنشاء البيانات الافتراضية...');
-            await adminRef.set({ username: 'admin', password: bcrypt.hashSync('admin123', 10), role: 'admin', credits: 10000, referral_code: 'ADMIN001', status: 'active', created_at: TS.serverTimestamp() });
-            await db.collection('users').doc('reseller1').set({ username: 'reseller1', password: bcrypt.hashSync('reseller123', 10), role: 'reseller', credits: 500, parent_id: 'admin', referral_code: 'RES001', status: 'active', created_at: TS.serverTimestamp() });
-        }
-        if ((await db.collection('plans').get()).empty) {
-            const plans = [
-                { name_ar: 'تجريبي', duration_days: 1, data_limit_mb: 100, price: 0, retail_price: 0, is_gaming: 0 },
-                { name_ar: 'أسبوعي', duration_days: 7, data_limit_mb: 1000, price: 10, retail_price: 15, is_gaming: 0 },
-                { name_ar: 'شهري', duration_days: 30, data_limit_mb: 5000, price: 30, retail_price: 45, is_gaming: 0 },
-                { name_ar: '3 أشهر', duration_days: 90, data_limit_mb: 15000, price: 80, retail_price: 110, is_gaming: 0 },
-                { name_ar: 'جيمنج أسبوعي', duration_days: 7, data_limit_mb: 999999, price: 20, retail_price: 30, is_gaming: 1 },
-                { name_ar: 'جيمنج شهري', duration_days: 30, data_limit_mb: 999999, price: 50, retail_price: 75, is_gaming: 1 }
-            ];
-            for (const p of plans) await db.collection('plans').add(p);
-        }
-        if ((await db.collection('servers').get()).empty) {
-            const DEMO_UUID = 'a3482e88-686a-4a58-8126-99c9df64b7bf';
-            const servers = [
-                { display_name: 'فودافون WS/TLS', company_name: 'فودافون', engine: 'v2ray', protocol: 'vmess', uuid: DEMO_UUID, network: 'ws', security: 'tls', host: 'vpn1.btc.com', port: 443, sni_hostname: 'web.vodafone.com.eg', path: '/btc', ws_host: 'web.vodafone.com.eg', alter_id: 0, vmess_security: 'auto', allow_insecure: 0, is_gaming: 0, ping_ms: 45, is_active: 1 },
-                { display_name: 'اورنج gRPC', company_name: 'اورنج', engine: 'v2ray', protocol: 'vless', uuid: DEMO_UUID, network: 'grpc', security: 'tls', host: 'vpn3.btc.com', port: 443, sni_hostname: 'my.orange.eg', grpc_service: 'TunService', allow_insecure: 0, is_gaming: 0, ping_ms: 55, is_active: 1 },
-                { display_name: '🎮 PUBG Trojan', company_name: 'فودافون', engine: 'v2ray', protocol: 'trojan', uuid: 'trojan-pass-demo', network: 'ws', security: 'tls', host: 'gaming1.btc.com', port: 443, sni_hostname: 'web.vodafone.com.eg', path: '/game', ws_host: 'web.vodafone.com.eg', allow_insecure: 0, is_gaming: 1, ping_ms: 25, is_active: 1 }
-            ];
-            for (const s of servers) await db.collection('servers').add(s);
-        }
-        console.log('✅ البيانات الافتراضية جاهزة');
-    } catch (error) { console.error('❌ خطأ في seedData:', error.message); }
+function syntaxHL(json){
+  return json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,m=>{
+      let c='n'; if(/^"/.test(m)) c=/:$/.test(m)?'k':'s'; else if(/true|false/.test(m)) c='b'; else if(/null/.test(m)) c='b';
+      return '<span class="'+c+'">'+m+'</span>';
+    });
 }
-
-// ============================================
-// Middleware
-// ============================================
-function authenticateToken(req, res, next) {
-    const token = req.headers['authorization']?.split(' ')[1];
-    if (!token) return res.status(401).json({ success: false, message: 'غير مصرح' });
-    try { req.user = jwt.verify(token, JWT_SECRET); next(); }
-    catch (e) { return res.status(403).json({ success: false, message: 'انتهت الجلسة' }); }
+function refreshPreview(){
+  const box=document.getElementById('srvPreviewCode'); if(!box||!srvDraft) return;
+  const vals=collectFields(SRV_FIELDS());
+  const cfg=buildV2Preview(Object.assign({},srvDraft,vals));
+  box.innerHTML=syntaxHL(JSON.stringify(cfg,null,2));
+  box.classList.remove('flash'); void box.offsetWidth; box.classList.add('flash');
 }
-function checkRole(roles) {
-    return (req, res, next) => {
-        if (!roles.includes(req.user.role)) return res.status(403).json({ success: false, message: 'لا تملك صلاحية' });
-        next();
-    };
+function toggleVFields(){
+  const eng=document.getElementById('f_engine'); if(!eng) return;
+  const show=eng.value==='v2ray';
+  const g=document.getElementById('v2fields'); if(g) g.classList.toggle('show',show);
+  refreshPreview();
 }
-const onlyAdmin = checkRole(['admin']);
-const staff = checkRole(['admin', 'reseller']);
+function copyPreview(){ const box=document.getElementById('srvPreviewCode'); if(!box) return; navigator.clipboard.writeText(box.textContent); toast('ok','تم النسخ','إعداد V2Ray في الحافظة — جاهز لـ setConfigureFileContent'); }
 
-// ============================================
-// مصادقة اللوحة
-// ============================================
-app.post('/api/login', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        if (!username || !password) return res.json({ success: false, message: 'بيانات ناقصة' });
-        const snap = await db.collection('users').where('username', '==', username).get();
-        if (snap.empty) return res.json({ success: false, message: 'بيانات خاطئة' });
-        const doc = snap.docs[0], u = doc.data();
-        if (u.status === 'blocked') return res.json({ success: false, message: 'الحساب موقوف من الإدارة' });
-        if (!bcrypt.compareSync(password, u.password)) return res.json({ success: false, message: 'بيانات خاطئة' });
-        const token = jwt.sign({ id: doc.id, username: u.username, role: u.role }, JWT_SECRET, { expiresIn: '30d' });
-        res.json({ success: true, message: 'تم تسجيل الدخول', data: { token, user: { id: doc.id, username: u.username, role: u.role, credits: u.credits } } });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
+/* ===== Result modal ===== */
+function openResult(d){ last=d; document.getElementById('mUser').textContent=d.username; document.getElementById('mPass').textContent=d.password; document.getElementById('mPlan').textContent=d.plan; document.getElementById('mExp').textContent=new Date(d.expiry_date).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); document.getElementById('backdrop').classList.add('show'); }
+function cpOne(id){ navigator.clipboard.writeText(document.getElementById(id).textContent); toast('ok','تم النسخ','تم نسخ الحقل إلى الحافظة'); }
+function copyAll(){ if(!last)return; navigator.clipboard.writeText(`B.T.C VPN — حساب جديد\nالمستخدم: ${last.username}\nكلمة المرور: ${last.password}\nالباقة: ${last.plan}\nالانتهاء: ${last.expiry_date}`); toast('ok','تم نسخ البيانات','كل تفاصيل الحساب في الحافظة'); }
 
-// مصادقة التطبيق
-app.post('/api/user/login', async (req, res) => {
-    try {
-        const { username, password } = req.body;
-        if (!username || !password) return res.json({ success: false, message: 'بيانات ناقصة' });
-        const snap = await db.collection('accounts').where('username', '==', username).get();
-        if (snap.empty) return res.json({ success: false, message: 'بيانات خاطئة' });
-        const doc = snap.docs[0], a = doc.data();
-        if (a.status === 'frozen') return res.json({ success: false, message: '🔒 الحساب مجمّد' + (a.frozen_reason ? ': ' + a.frozen_reason : '') });
-        if (a.status === 'blocked') return res.json({ success: false, message: 'الحساب محظور' });
-        if (a.status === 'expired' || new Date(a.expiry_date) < new Date()) { await db.collection('accounts').doc(doc.id).update({ status: 'expired' }); return res.json({ success: false, message: '⏰ انتهت الصلاحية' }); }
-        if (!bcrypt.compareSync(password, a.password)) return res.json({ success: false, message: 'بيانات خاطئة' });
-        const pd = await db.collection('plans').doc(a.plan_id).get();
-        const token = jwt.sign({ id: doc.id, username: a.username, role: 'user' }, JWT_SECRET, { expiresIn: '7d' });
-        res.json({ success: true, data: { token, account: { id: doc.id, username: a.username, plan_name: pd.exists ? pd.data().name_ar : '—', expiry_date: a.expiry_date, allow_hotspot: a.allow_hotspot || 0, max_hotspot_devices: a.max_hotspot_devices || 0 } } });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
+/* ===== Clock / greet / counter ===== */
+function animate(el,end){ const dur=900,t0=performance.now(); (function s(t){ const p=Math.min((t-t0)/dur,1),e=1-Math.pow(1-p,3); el.textContent=Math.round(end*e).toLocaleString('en'); if(p<1)requestAnimationFrame(s); })(t0); }
+function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString('ar-EG',{hour12:false}); }
+setInterval(tick,1000); tick();
+function setGreet(name){ const h=new Date().getHours(); const g=h<12?'صباح الخير':h<18?'طاب يومك':'مساء الخير'; document.getElementById('greet').innerHTML=`${g}، <em>${name}</em>`; }
 
-// /api/me ذكي
-app.get('/api/me', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role === 'user') {
-            const doc = await db.collection('accounts').doc(req.user.id).get();
-            if (!doc.exists) return res.json({ success: false, message: 'الحساب غير موجود' });
-            const a = doc.data();
-            const pd = await db.collection('plans').doc(a.plan_id).get();
-            const plan = pd.exists ? pd.data() : { name_ar: '—', data_limit_mb: 0 };
-            const days = Math.max(0, Math.ceil((new Date(a.expiry_date) - new Date()) / 86400000));
-            return res.json({ success: true, data: { username: a.username, plan_name: plan.name_ar, expiry_date: a.expiry_date, days_remaining: days, data_used_mb: Math.round(a.data_used_mb || 0), data_limit_mb: plan.data_limit_mb, data_remaining_mb: Math.max(0, Math.round((plan.data_limit_mb || 0) - (a.data_used_mb || 0))), session_hours: Math.round((a.session_hours || 0) * 10) / 10, total_sessions: a.total_sessions || 0, referral_code: a.referral_code || null, status: a.status, allow_hotspot: a.allow_hotspot || 0, max_hotspot_devices: a.max_hotspot_devices || 0 } });
-        }
-        const doc = await db.collection('users').doc(req.user.id).get();
-        if (!doc.exists) return res.json({ success: false, message: 'غير موجود' });
-        const u = doc.data(); delete u.password;
-        res.json({ success: true, data: { ...u, id: doc.id } });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-
-// ============================================
-// الإحصائيات
-// ============================================
-app.get('/api/stats', authenticateToken, staff, async (req, res) => {
-    try {
-        const snap = await db.collection('accounts').get();
-        let total = 0, active = 0, expired = 0, frozen = 0; const now = new Date();
-        snap.forEach(d => { const a = d.data(); total++; if (a.status === 'frozen') frozen++; else if (new Date(a.expiry_date) > now && a.status === 'active') active++; else expired++; });
-        const u = (await db.collection('users').doc(req.user.id).get()).data();
-        res.json({ success: true, stats: { total_accounts: total, active_accounts: active, expired_accounts: expired, frozen_accounts: frozen, available_credits: u.credits || 0 } });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-
-// ============================================
-// الحسابات
-// ============================================
-app.get('/api/accounts', authenticateToken, staff, async (req, res) => {
-    try {
-        const snap = await db.collection('accounts').orderBy('created_at', 'desc').limit(300).get();
-        const accounts = [];
-        for (const d of snap.docs) { const a = d.data(); const pd = await db.collection('plans').doc(a.plan_id).get(); accounts.push({ id: d.id, ...a, plan_name: pd.exists ? pd.data().name_ar : '—' }); }
-        res.json({ success: true, accounts });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.post('/api/account/create', authenticateToken, staff, async (req, res) => {
-    try {
-        const { username, password, plan_id, is_random } = req.body;
-        const finalUsername = (is_random || !username) ? 'vip' + Math.floor(10000 + Math.random() * 90000) : username;
-        const finalPassword = (is_random || !password) ? Math.random().toString(36).slice(-8) : password;
-        if (!(await db.collection('accounts').where('username', '==', finalUsername).get()).empty) return res.json({ success: false, message: 'اسم المستخدم موجود' });
-        const pd = await db.collection('plans').doc(plan_id).get();
-        if (!pd.exists) return res.json({ success: false, message: 'الباقة غير موجودة' });
-        const plan = pd.data();
-        const ud = await db.collection('users').doc(req.user.id).get();
-        if (ud.data().credits < plan.price) return res.json({ success: false, message: 'رصيد غير كافٍ' });
-        const expiry_date = new Date(Date.now() + plan.duration_days * 86400000).toISOString();
-        await db.collection('accounts').add({ reseller_id: req.user.id, username: finalUsername, password: bcrypt.hashSync(finalPassword, 10), plan_id, expiry_date, referral_code: Math.random().toString(36).substring(2, 8).toUpperCase(), data_used_mb: 0, session_hours: 0, total_sessions: 0, status: 'active', allow_hotspot: 0, max_hotspot_devices: 0, hotspot_active: 0, created_at: TS.serverTimestamp() });
-        await db.collection('users').doc(req.user.id).update({ credits: TS.increment(-plan.price) });
-        res.json({ success: true, message: 'تم الإصدار', data: { username: finalUsername, password: finalPassword, plan: plan.name_ar, duration_days: plan.duration_days, expiry_date, referral_code: '' } });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.post('/api/accounts/update', authenticateToken, staff, async (req, res) => {
-    try {
-        const { id, status, frozen_reason, add_days, new_password, plan_id, allow_hotspot, max_hotspot_devices } = req.body;
-        if (!id) return res.json({ success: false, message: 'معرف الحساب مطلوب' });
-        const ref = db.collection('accounts').doc(id);
-        const cur = await ref.get();
-        if (!cur.exists) return res.json({ success: false, message: 'الحساب غير موجود' });
-        const a = cur.data(); const upd = {}; const notes = [];
-        if (status && ['active', 'frozen', 'blocked', 'expired'].includes(status)) { upd.status = status; notes.push('الحالة ← ' + status); if (status === 'frozen') upd.frozen_reason = frozen_reason || 'مجمّد من الإدارة'; if (status === 'active') upd.frozen_reason = TS.delete(); }
-        if (Number(add_days) > 0) { const base = Math.max(Date.now(), new Date(a.expiry_date).getTime()); upd.expiry_date = new Date(base + Number(add_days) * 86400000).toISOString(); if (a.status === 'expired') upd.status = 'active'; notes.push('تمديد +' + add_days + ' يوم'); }
-        if (new_password) { upd.password = bcrypt.hashSync(String(new_password), 10); notes.push('إعادة ضبط كلمة السر'); }
-        if (plan_id) { const pd = await db.collection('plans').doc(plan_id).get(); if (!pd.exists) return res.json({ success: false, message: 'الباقة غير موجودة' }); upd.plan_id = plan_id; notes.push('تغيير الباقة'); }
-        if (allow_hotspot !== undefined) upd.allow_hotspot = allow_hotspot ? 1 : 0;
-        if (max_hotspot_devices !== undefined) upd.max_hotspot_devices = Number(max_hotspot_devices) || 0;
-        if (Object.keys(upd).length === 0) return res.json({ success: false, message: 'لا يوجد تعديل' });
-        await ref.update(upd);
-        res.json({ success: true, message: 'تم التحديث: ' + notes.join('، ') });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-
-// ============================================
-// الباقات
-// ============================================
-app.get('/api/plans', authenticateToken, async (req, res) => {
-    try { const snap = await db.collection('plans').get(); res.json({ success: true, plans: snap.docs.map(d => ({ id: d.id, ...d.data() })) }); }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.post('/api/plans/save', authenticateToken, onlyAdmin, async (req, res) => {
-    try {
-        const { id, name_ar, duration_days, data_limit_mb, price, retail_price, is_gaming } = req.body;
-        if (!name_ar || !duration_days) return res.json({ success: false, message: 'الاسم والمدة مطلوبان' });
-        const cost = Number(price) || 0;
-        const data = { name_ar: String(name_ar).trim(), duration_days: Number(duration_days) || 1, data_limit_mb: Number(data_limit_mb) || 0, price: cost, retail_price: Number(retail_price) || cost, is_gaming: is_gaming ? 1 : 0 };
-        if (id) await db.collection('plans').doc(id).set(data, { merge: true }); else await db.collection('plans').add(data);
-        res.json({ success: true, message: id ? 'تم تعديل الباقة' : 'تمت إضافة الباقة' });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.delete('/api/plans/:id', authenticateToken, onlyAdmin, async (req, res) => {
-    try { await db.collection('plans').doc(req.params.id).delete(); res.json({ success: true, message: 'تم حذف الباقة' }); }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-
-// ============================================
-// السيرفرات + مولّد V2Ray
-// ============================================
-app.get('/api/servers', authenticateToken, async (req, res) => {
-    try { const snap = await db.collection('servers').get(); res.json({ success: true, servers: snap.docs.map(d => ({ id: d.id, ...d.data() })) }); }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-
-// توليد الإعداد المحفوظ — متاح لكل دور مصدَّق (التطبيق يحتاجه)
-app.get('/api/servers/:id/v2config', authenticateToken, async (req, res) => {
-    try {
-        const doc = await db.collection('servers').doc(req.params.id).get();
-        if (!doc.exists) return res.json({ success: false, message: 'السيرفر غير موجود' });
-        const s = doc.data();
-        if (s.is_active === 0 && req.user.role === 'user') return res.json({ success: false, message: 'السيرفر غير متاح' });
-        const config = buildV2Config(s);
-        res.json({ success: true, engine: s.engine || 'v2ray', config, configString: JSON.stringify(config) });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-
-app.post('/api/servers/save', authenticateToken, onlyAdmin, async (req, res) => {
-    try {
-        const b = req.body;
-        if (!b.display_name || !b.host || !b.sni_hostname) return res.json({ success: false, message: 'الاسم والمضيف و SNI مطلوبة' });
-        const data = {
-            display_name: String(b.display_name).trim(),
-            company_name: String(b.company_name || 'عام').trim(),
-            engine: String(b.engine || 'v2ray'),
-            protocol: String(b.protocol || 'vmess'),
-            uuid: String(b.uuid || '').trim(),
-            network: String(b.network || 'ws'),
-            security: String(b.security || 'tls'),
-            host: String(b.host).trim(),
-            port: Number(b.port) || 443,
-            sni_hostname: String(b.sni_hostname).trim(),
-            path: String(b.path || '/'),
-            ws_host: String(b.ws_host || ''),
-            grpc_service: String(b.grpc_service || 'TunService'),
-            tcp_type: String(b.tcp_type || 'none'),
-            alter_id: Number(b.alter_id) || 0,
-            vmess_security: String(b.vmess_security || 'auto'),
-            flow: String(b.flow || ''),
-            allow_insecure: b.allow_insecure ? 1 : 0,
-            is_gaming: b.is_gaming ? 1 : 0,
-            ping_ms: Number(b.ping_ms) || 50,
-            is_active: (b.is_active === 0 || b.is_active === false) ? 0 : 1
-        };
-        if (b.id) await db.collection('servers').doc(b.id).set(data, { merge: true }); else await db.collection('servers').add(data);
-        res.json({ success: true, message: b.id ? 'تم تعديل السيرفر' : 'تمت إضافة السيرفر' });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.post('/api/servers/toggle', authenticateToken, onlyAdmin, async (req, res) => {
-    try { const { id, is_active } = req.body; await db.collection('servers').doc(id).update({ is_active: is_active ? 1 : 0 }); res.json({ success: true, message: is_active ? 'تم التفعيل' : 'تم الإيقاف' }); }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.delete('/api/servers/:id', authenticateToken, onlyAdmin, async (req, res) => {
-    try { await db.collection('servers').doc(req.params.id).delete(); res.json({ success: true, message: 'تم حذف السيرفر' }); }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-
-// ============================================
-// الموزّعون + الشحن الذاتي
-// ============================================
-app.get('/api/users', authenticateToken, onlyAdmin, async (req, res) => {
-    try { const snap = await db.collection('users').get(); res.json({ success: true, users: snap.docs.map(d => { const u = d.data(); delete u.password; return { id: d.id, ...u }; }) }); }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.post('/api/users/create', authenticateToken, onlyAdmin, async (req, res) => {
-    try {
-        const { username, password, role, credits } = req.body;
-        if (!username || !password) return res.json({ success: false, message: 'الاسم وكلمة المرور مطلوبان' });
-        if (!(await db.collection('users').where('username', '==', username.trim()).get()).empty) return res.json({ success: false, message: 'اسم المستخدم مستخدم' });
-        await db.collection('users').doc().set({ username: username.trim(), password: bcrypt.hashSync(password, 10), role: role === 'admin' ? 'admin' : 'reseller', credits: Number(credits) || 0, referral_code: Math.random().toString(36).substring(2, 8).toUpperCase(), status: 'active', created_at: TS.serverTimestamp() });
-        res.json({ success: true, message: 'تمت إضافة الموزّع' });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.post('/api/users/credit', authenticateToken, onlyAdmin, async (req, res) => {
-    try { const { id, amount, mode } = req.body; const val = Math.abs(Number(amount) || 0); if (mode === 'set') await db.collection('users').doc(id).update({ credits: val }); else await db.collection('users').doc(id).update({ credits: TS.increment(val) }); res.json({ success: true, message: 'تم تحديث الرصيد' }); }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.post('/api/users/self-credit', authenticateToken, onlyAdmin, async (req, res) => {
-    try {
-        const { amount } = req.body; const val = Math.abs(Number(amount) || 0);
-        if (val < 1) return res.json({ success: false, message: 'قيمة غير صالحة' });
-        const ref = db.collection('users').doc(req.user.id);
-        await ref.update({ credits: TS.increment(val) });
-        const u = (await ref.get()).data();
-        res.json({ success: true, message: 'تم شحن رصيدك بنجاح', data: { credits: u.credits } });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.post('/api/users/toggle', authenticateToken, onlyAdmin, async (req, res) => {
-    try { const { id, status } = req.body; await db.collection('users').doc(id).update({ status: status === 'blocked' ? 'blocked' : 'active' }); res.json({ success: true, message: 'تم تحديث الحالة' }); }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.delete('/api/users/:id', authenticateToken, onlyAdmin, async (req, res) => {
-    try {
-        if (req.params.id === req.user.id) return res.json({ success: false, message: 'لا يمكنك حذف نفسك' });
-        const u = (await db.collection('users').doc(req.params.id).get()).data();
-        if (!u) return res.json({ success: false, message: 'غير موجود' });
-        if (u.role === 'admin') return res.json({ success: false, message: 'لا يمكن حذف مدير' });
-        await db.collection('users').doc(req.params.id).delete();
-        res.json({ success: true, message: 'تم حذف الموزّع' });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-
-// ============================================
-// Hotspot
-// ============================================
-app.get('/api/hotspot/:accountId', authenticateToken, staff, async (req, res) => {
-    try { const snap = await db.collection('hotspot_devices').where('account_id', '==', req.params.accountId).orderBy('last_seen', 'desc').limit(50).get(); res.json({ success: true, devices: snap.docs.map(d => ({ id: d.id, ...d.data() })) }); }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.post('/api/hotspot/link', authenticateToken, staff, async (req, res) => {
-    try {
-        const { device_id, plan_id } = req.body;
-        const dev = await db.collection('hotspot_devices').doc(device_id).get();
-        if (!dev.exists) return res.json({ success: false, message: 'الجهاز غير موجود' });
-        const pd = await db.collection('plans').doc(plan_id).get();
-        if (!pd.exists) return res.json({ success: false, message: 'الباقة غير موجودة' });
-        const plan = pd.data();
-        const ud = await db.collection('users').doc(req.user.id).get();
-        if (ud.data().credits < plan.price) return res.json({ success: false, message: 'رصيد غير كافٍ' });
-        const finalUsername = 'vip' + Math.floor(10000 + Math.random() * 90000);
-        const finalPassword = Math.random().toString(36).slice(-8);
-        const expiry_date = new Date(Date.now() + plan.duration_days * 86400000).toISOString();
-        const newRef = await db.collection('accounts').add({ reseller_id: req.user.id, username: finalUsername, password: bcrypt.hashSync(finalPassword, 10), plan_id, expiry_date, referral_code: Math.random().toString(36).substring(2, 8).toUpperCase(), data_used_mb: 0, session_hours: 0, total_sessions: 0, status: 'active', allow_hotspot: 0, max_hotspot_devices: 0, hotspot_active: 0, created_at: TS.serverTimestamp() });
-        await db.collection('hotspot_devices').doc(device_id).update({ linked_account_id: newRef.id, is_approved: 1 });
-        await db.collection('users').doc(req.user.id).update({ credits: TS.increment(-plan.price) });
-        res.json({ success: true, message: 'تم ربط الجهاز باشتراك', data: { username: finalUsername, password: finalPassword, plan: plan.name_ar, duration_days: plan.duration_days, expiry_date, referral_code: '' } });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.delete('/api/hotspot/:id', authenticateToken, staff, async (req, res) => {
-    try { await db.collection('hotspot_devices').doc(req.params.id).delete(); res.json({ success: true, message: 'تم حذف الجهاز' }); }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-app.post('/api/hotspot/report', authenticateToken, async (req, res) => {
-    try {
-        if (req.user.role !== 'user') return res.json({ success: false, message: 'غير مصرح' });
-        const { devices } = req.body;
-        const acc = await db.collection('accounts').doc(req.user.id).get();
-        if (!acc.exists || !acc.data().allow_hotspot) return res.json({ success: false, message: 'الحساب لا يدعم Hotspot' });
-        const max = acc.data().max_hotspot_devices || 0;
-        if (Array.isArray(devices)) {
-            for (const d of devices.slice(0, max)) {
-                const q = await db.collection('hotspot_devices').where('account_id', '==', req.user.id).where('mac_address', '==', d.mac_address).get();
-                const payload = { account_id: req.user.id, mac_address: d.mac_address, ip_address: d.ip_address || null, device_name: d.device_name || 'Unknown', last_seen: TS.serverTimestamp() };
-                if (q.empty) await db.collection('hotspot_devices').add(payload); else await q.docs[0].ref.update(payload);
-            }
-        }
-        res.json({ success: true, message: 'تم تسجيل الأجهزة', data: { max_allowed: max } });
-    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
-});
-
-// ============================================
-// ملفات ثابتة + تشغيل
-// ============================================
-app.use(express.static(__dirname));
-async function startServer() {
-    await seedData();
-    app.listen(PORT, () => { console.log('========================================'); console.log('🚀 B.T.C VPN Server Started (V2Ray layer ready)'); console.log(`📡 Port: ${PORT}`); console.log('========================================'); });
+/* ===== Auth ===== */
+async function verify(){ try{ const d=await api('/api/me'); if(d.success&&d.data.role){ me=d.data; enter(); } else doLogout(); }catch(e){ doLogout(); } }
+async function doLogin(){
+  const u=document.getElementById('username').value.trim(),p=document.getElementById('password').value,b=document.getElementById('loginBtn');
+  if(!u||!p){ toast('err','بيانات ناقصة','أدخل اسم المستخدم وكلمة المرور'); return; }
+  b.disabled=true; b.innerHTML='<span class="spin"></span>جارٍ التحقق…';
+  try{ const r=await fetch(API+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})}); const d=await r.json(); b.disabled=false; b.textContent='تسجيل الدخول'; if(d.success&&d.data){ token=d.data.token; localStorage.setItem('btc_token',token); me=d.data.user; enter(); toast('ok','أهلاً بك','تم فتح لوحة التحكم'); } else toast('err','فشل الدخول',d.message||'تحقق من البيانات'); }
+  catch(e){ b.disabled=false; b.textContent='تسجيل الدخول'; toast('err','تعذّر الاتصال','الخادم لا يستجيب'); }
 }
-startServer().catch(err => { console.error('Fatal:', err); process.exit(1); });
+function doLogout(){ localStorage.removeItem('btc_token'); token=null; location.reload(); }
+function enter(){
+  document.getElementById('loginScreen').style.display='none'; document.getElementById('app').style.display='grid';
+  if(me.role==='admin') document.body.classList.add('is-admin');
+  const stb=document.getElementById('selfTopupBtn'); if(stb) stb.style.display=me.role==='admin'?'inline-flex':'none';
+  const name=me.username, role=me.role==='admin'?'مدير النظام':'موزّع';
+  document.getElementById('meName').textContent=name; document.getElementById('meRole').textContent=role;
+  document.getElementById('meAv').textContent=name.charAt(0).toUpperCase();
+  document.getElementById('greetName').textContent=name; setGreet(name);
+  buildBars(); loadStats(); loadAccounts(); loadPlans();
+  if(me.role==='admin'){ loadUsers(); loadServers(); }
+  revealAll();
+}
+function buildBars(){ const c=document.getElementById('bars'); c.innerHTML=''; for(let i=0;i<14;i++){ const b=document.createElement('i'); b.style.height=(20+Math.random()*80)+'%'; b.style.animationDelay=(i*0.05)+'s'; c.appendChild(b); } }
+
+/* ===== Stats ===== */
+async function loadStats(){ try{ const d=await api('/api/stats'); if(d.success){ animate(document.getElementById('sCredits'),d.stats.available_credits||0); animate(document.getElementById('sTotal'),d.stats.total_accounts||0); animate(document.getElementById('sActive'),d.stats.active_accounts||0); animate(document.getElementById('sFrozen'),d.stats.frozen_accounts||0); animate(document.getElementById('sExpired'),d.stats.expired_accounts||0); } }catch(e){} }
+
+/* ===== Plans ===== */
+async function loadPlans(){ try{ const d=await api('/api/plans'); if(!d.success)return; plansCache=d.plans||[]; const sel=document.getElementById('accPlan'); sel.innerHTML=plansCache.length?plansCache.map(p=>`<option value="${p.id}">${p.is_gaming?'🎮 ':''}${p.name_ar} — ${p.duration_days} يوم (تكلفة ${p.price}${p.retail_price?(' / بيع '+p.retail_price):''})</option>`).join(''):'<option value="">لا توجد باقات — أضف واحدة من الإدارة</option>'; if(me&&me.role==='admin')renderPlans(); }catch(e){} }
+function renderPlans(){ const body=document.getElementById('plansBody'),empty=document.getElementById('emptyPlans'); body.innerHTML=''; if(!plansCache.length){empty.style.display='block';return;} empty.style.display='none'; plansCache.forEach(p=>{ const retail=p.retail_price||p.price; const margin=(retail-p.price); body.innerHTML+=`<tr><td class="u-name">${p.name_ar}</td><td class="mono" style="color:var(--mut)">${p.duration_days} يوم</td><td class="mono" style="color:var(--mut)">${(p.data_limit_mb>=999999?'∞':p.data_limit_mb+' MB')}</td><td style="color:var(--gold-b);font-weight:700">${p.price}</td><td style="color:var(--green);font-weight:700">${retail}${margin>0?` <span style="color:var(--mut);font-weight:600;font-size:11px">(+${margin})</span>`:''}</td><td><span class="badge ${p.is_gaming?'blue':'gold'}"><span class="d"></span>${p.is_gaming?'جيمنج':'عادي'}</span></td><td><div class="row-act"><button class="btn blue sm" onclick='planForm(${JSON.stringify(p)})'>تعديل</button><button class="btn danger sm" onclick="delPlan('${p.id}','${p.name_ar}')">حذف</button></div></td></tr>`; }); }
+function planForm(p){ openForm({title:p?'تعديل باقة':'باقة جديدة',sub:'التكلفة تُخصم من الموزّع عند الإصدار • البيع سعر التجزئة المقترح',icon:'edit',submitLabel:'حفظ الباقة',fields:[{key:'name_ar',label:'اسم الباقة',value:p?.name_ar||'',placeholder:'مثال: شهري VIP'},{key:'price',label:'سعر التكلفة (بالرصيد)',type:'number',value:p?.price??0},{key:'retail_price',label:'سعر البيع المقترح',type:'number',value:p?.retail_price??p?.price??0},{key:'duration_days',label:'المدة بالأيام',type:'number',value:p?.duration_days??30},{key:'data_limit_mb',label:'حد البيانات (MB)',type:'number',value:p?.data_limit_mb??5000,placeholder:'999999 = غير محدود'},{key:'is_gaming',label:'باقة جيمنج (بينج منخفض)',type:'checkbox',value:!!p?.is_gaming,full:true}],onSubmit:async v=>{ const d=await api('/api/plans/save',Object.assign({id:p?.id},v)); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadPlans();}else toast('err','تعذّر الحفظ',d.message); } }); }
+function delPlan(id,name){ confirmAction('حذف الباقة',`سيتم حذف «${name}» نهائياً. الحسابات القديمة لن تتأثر.`, async()=>{ const d=await apiDel('/api/plans/'+id); if(d.success){toast('ok',d.message);loadPlans();}else toast('err','فشل الحذف',d.message); }); }
+
+/* ===== Self credit ===== */
+function selfCreditForm(){ openForm({title:'شحن رصيدك',sub:'أنت المدير — الرصيد يُضاف مباشرة إلى حسابك (المنبع)',icon:'gold',submitLabel:'إضافة الرصيد',fields:[{key:'amount',label:'المقدار المراد إضافته',type:'number',value:1000},{key:'note',label:'ملاحظة (اختياري)',placeholder:'سبب الشحن / مرجع داخلي'}],onSubmit:async v=>{ if(!v.amount||v.amount<1){toast('err','قيمة غير صالحة','أدخل مقداراً موجباً');return;} const d=await api('/api/users/self-credit',{amount:v.amount,note:v.note}); if(d.success){toast('ok',d.message,'رصيدك الجديد: '+(d.data?.credits!=null?Number(d.data.credits).toLocaleString('en'):'—'));hide('dynBackdrop');loadStats();}else toast('err','فشل الشحن',d.message); } }); }
+
+/* ===== Create account ===== */
+async function createAccount(){ const u=document.getElementById('accUser').value.trim(),p=document.getElementById('accPass').value.trim(),plan_id=document.getElementById('accPlan').value,is_random=document.getElementById('isRandom').checked,b=document.getElementById('createBtn'); if(!plan_id){toast('err','اختر باقة','لا توجد باقة محدّدة');return;} b.disabled=true; b.innerHTML='<span class="spin"></span>جارٍ الإصدار…'; try{ const d=await api('/api/account/create',{username:u||null,password:p||null,plan_id,is_random}); b.disabled=false; b.textContent='إصدار الحساب'; if(d.success){openResult(d.data);toast('ok','تم الإصدار','الحساب '+d.data.username+' جاهز');loadStats();loadAccounts();resetForm();}else toast('err','تعذّر الإصدار',d.message); }catch(e){ b.disabled=false; b.textContent='إصدار الحساب'; toast('err','خطأ في الاتصال','لم نصل للخادم'); } }
+function resetForm(){ document.getElementById('accUser').value=''; document.getElementById('accPass').value=''; }
+
+/* ===== Accounts ===== */
+function accStatus(a){ if(a.status==='blocked')return{c:'no',t:'محظور'}; if(a.status==='frozen')return{c:'gold',t:'مجمّد'}; if(a.status==='expired'||new Date(a.expiry_date)<new Date())return{c:'no',t:'منتهي'}; return{c:'ok',t:'نشط'}; }
+async function loadAccounts(){ try{ const d=await api('/api/accounts'); const body=document.getElementById('accBody'),empty=document.getElementById('emptyAcc'); body.innerHTML=''; const list=d.accounts||[]; if(!list.length){empty.style.display='block';return;} empty.style.display='none'; list.forEach(a=>{ const st=accStatus(a); const exp=new Date(a.expiry_date); const wifi=a.allow_hotspot?`<span class="badge blue"><span class="d"></span>${a.max_hotspot_devices||0}</span>`:`<span class="badge no"><span class="d"></span>مغلق</span>`; body.innerHTML+=`<tr><td class="u-name">${a.username}</td><td>${a.plan_name||'—'}</td><td>${wifi}</td><td class="mono" style="color:var(--mut)">${exp.toLocaleDateString('ar-EG')}</td><td><span class="badge ${st.c}"><span class="d"></span>${st.t}</span></td><td><div class="row-act"><button class="btn blue sm" onclick='manageAccount(${JSON.stringify(a).replace(/'/g,"&#39;")})'>إدارة</button></div></td></tr>`; }); }catch(e){ toast('err','تعذّر التحميل','فشل جلب الحسابات'); } }
+
+/* ===== Manage account ===== */
+function manageAccount(a){
+  currentAcc=a; const st=accStatus(a); const exp=new Date(a.expiry_date).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'});
+  const planOpts=plansCache.map(p=>`<option value="${p.id}" ${p.id===a.plan_id?'selected':''}>${p.name_ar} — ${p.duration_days} يوم</option>`).join('');
+  document.getElementById('accModal').innerHTML=`
+    <div class="modal-h"><div class="chk gold">⚙</div><div><h4 class="disp">إدارة الحساب</h4><p class="mono" style="color:var(--gold-b)">${a.username}</p></div><span class="badge ${st.c} hbadge"><span class="d"></span>${st.t}</span></div>
+    <div class="modal-b">
+      <div class="sec"><div class="sec-t"><span class="b"></span>نظرة عامة</div>
+        <div class="row" style="margin-bottom:8px"><span class="k">الباقة الحالية</span><span class="v gold">${a.plan_name||'—'}</span></div>
+        <div class="row" style="margin-bottom:8px"><span class="k">تاريخ الانتهاء</span><span class="v">${exp}</span></div>
+        <div class="row" style="margin-bottom:8px"><span class="k">الجلسات / الساعات</span><span class="v">${a.total_sessions||0} / ${(a.session_hours||0).toFixed(1)}h</span></div>
+        <div class="row"><span class="k">كود الإحالة</span><span class="v">${a.referral_code||'—'}</span></div></div>
+      <div class="sec"><div class="sec-t"><span class="b"></span>الحالة والأمان</div>
+        <div class="row-act" style="margin-bottom:10px"><button class="btn green sm" onclick="setStatus('active')">✓ تفعيل / فك تجميد</button><button class="btn sm" onclick="setStatus('frozen')">🔒 تجميد</button><button class="btn danger sm" onclick="setStatus('blocked')">⛔ حظر</button></div>
+        <div class="field"><label>سبب التجميد / الحظر (اختياري)</label><input class="inp" id="accReason" placeholder="مثال: رصد دخول من جهاز آخر" value="${a.frozen_reason||''}"></div></div>
+      <div class="sec"><div class="sec-t"><span class="b"></span>كلمة المرور</div>
+        <div class="inline"><div class="field"><label>كلمة مرور جديدة</label><input class="inp" id="accNewPwd" placeholder="اكتب أو ولّد"></div><button class="btn ghost" onclick="document.getElementById('accNewPwd').value=rndPass()">توليد</button><button class="btn blue" onclick="applyPwd()">تطبيق</button></div></div>
+      <div class="sec"><div class="sec-t"><span class="b"></span>التمديد والباقة</div>
+        <div class="inline" style="margin-bottom:10px"><div class="field"><label>إضافة أيام</label><input class="inp" id="accDays" type="number" placeholder="30"></div><button class="btn green" onclick="extendAcc()">تمديد</button></div>
+        <div class="inline"><div class="field"><label>تغيير الباقة (دون تمديد)</label><select class="sel" id="accPlanCh">${planOpts}</select></div><button class="btn blue" onclick="changePlan()">تطبيق</button></div></div>
+      <div class="sec"><div class="sec-t"><span class="b"></span>الواي فاي (Hotspot)</div>
+        <div class="inline" style="margin-bottom:10px"><div class="field"><label>السماح بمشاركة الواي فاي</label><select class="sel" id="accWifi"><option value="1" ${a.allow_hotspot?'selected':''}>مسموح</option><option value="0" ${!a.allow_hotspot?'selected':''}>ممنوع</option></select></div><div class="field"><label>أقصى عدد أجهزة</label><input class="inp" id="accWifiMax" type="number" value="${a.max_hotspot_devices||0}"></div><button class="btn" onclick="saveWifi()">حفظ</button></div>
+        <div class="row-act" style="margin-bottom:8px"><button class="btn ghost sm" onclick="loadHotspot()">📡 تحميل الأجهزة المتصلة</button></div>
+        <div class="devlist" id="accDevList"><div class="empty" style="padding:18px"><p>اضغط «تحميل الأجهزة» لعرض المتصلين</p></div></div></div>
+    </div>
+    <div class="modal-f"><button class="btn ghost" onclick="hide('accBackdrop')">إغلاق</button></div>`;
+  document.getElementById('accBackdrop').classList.add('show');
+}
+async function refreshCurrent(){ const d=await api('/api/accounts'); const f=(d.accounts||[]).find(x=>x.id===currentAcc.id); if(f)manageAccount(f); loadAccounts(); loadStats(); }
+async function setStatus(s){ const reason=document.getElementById('accReason')?.value||''; const d=await api('/api/accounts/update',{id:currentAcc.id,status:s,frozen_reason:reason}); if(d.success){toast('ok',d.message);refreshCurrent();}else toast('err','فشل',d.message); }
+async function applyPwd(){ const v=document.getElementById('accNewPwd').value.trim(); if(!v){toast('err','أدخل كلمة مرور','الحقل فارغ');return;} const d=await api('/api/accounts/update',{id:currentAcc.id,new_password:v}); if(d.success){toast('ok','تم ضبط كلمة السر','الجديدة: '+v);navigator.clipboard.writeText(v).catch(()=>{});}else toast('err','فشل',d.message); }
+async function extendAcc(){ const n=Number(document.getElementById('accDays').value); if(!n||n<1){toast('err','أدخل عدد أيام','قيمة غير صالحة');return;} const d=await api('/api/accounts/update',{id:currentAcc.id,add_days:n}); if(d.success){toast('ok',d.message);refreshCurrent();}else toast('err','فشل',d.message); }
+async function changePlan(){ const pid=document.getElementById('accPlanCh').value; if(pid===currentAcc.plan_id){toast('info','لا تغيير','نفس الباقة');return;} const d=await api('/api/accounts/update',{id:currentAcc.id,plan_id:pid}); if(d.success){toast('ok',d.message);refreshCurrent();}else toast('err','فشل',d.message); }
+async function saveWifi(){ const allow=document.getElementById('accWifi').value==='1'; const max=Number(document.getElementById('accWifiMax').value)||0; const d=await api('/api/accounts/update',{id:currentAcc.id,allow_hotspot:allow,max_hotspot_devices:max}); if(d.success){toast('ok',d.message);refreshCurrent();}else toast('err','فشل',d.message); }
+
+/* ===== Hotspot ===== */
+async function loadHotspot(){ const box=document.getElementById('accDevList'); box.innerHTML='<div class="empty" style="padding:18px"><p>جارٍ التحميل…</p></div>'; try{ const d=await api('/api/hotspot/'+currentAcc.id); const list=d.devices||[]; if(!list.length){box.innerHTML='<div class="empty" style="padding:18px"><div class="e-ic">📵</div><p>لا أجهزة متصلة حالياً</p></div>';return;} box.innerHTML=list.map(dev=>{ const linked=dev.linked_account_id?`<span class="badge ok"><span class="d"></span>مربوط</span>`:`<button class="btn green sm" onclick="linkDevice('${dev.id}')">🔗 ربط باشتراك</button>`; return `<div class="dev"><div class="di"><b>${dev.device_name||'جهاز'}</b><small class="mono">${dev.mac_address||'—'} • ${dev.ip_address||'—'}</small></div><div class="da">${linked}<button class="btn danger sm" onclick="delDevice('${dev.id}')">حذف</button></div></div>`; }).join(''); }catch(e){ box.innerHTML='<div class="empty" style="padding:18px"><p>تعذّر التحميل</p></div>'; } }
+function linkDevice(devId){ openForm({title:'ربط جهاز باشتراك (عائلة)',sub:'سيُنشأ حساب تابع ويُربط هذا الجهاز به',icon:'edit',submitLabel:'إنشاء وربط',fields:[{key:'plan_id',label:'باقة الحساب التابع',type:'select',options:plansCache.map(p=>({v:p.id,label:`${p.name_ar} — ${p.price} رصيد`}))}],onSubmit:async v=>{ const d=await api('/api/hotspot/link',{device_id:devId,plan_id:v.plan_id}); if(d.success){hide('dynBackdrop');openResult(d.data);toast('ok','تم الربط','الحساب التابع '+d.data.username+' جاهز');loadHotspot();loadAccounts();loadStats();}else toast('err','فشل الربط',d.message); } }); }
+async function delDevice(devId){ confirmAction('حذف الجهاز','سيُزال هذا الجهاز من قائمة الواي فاي للحساب.', async()=>{ const d=await apiDel('/api/hotspot/'+devId); if(d.success){toast('ok',d.message);loadHotspot();}else toast('err','فشل',d.message); }); }
+
+/* ===== Users ===== */
+async function loadUsers(){ try{ const d=await api('/api/users'); const body=document.getElementById('usersBody'),empty=document.getElementById('emptyUsers'); body.innerHTML=''; const list=d.users||[]; if(!list.length){empty.style.display='block';return;} empty.style.display='none'; list.forEach(u=>{ const blocked=u.status==='blocked'; body.innerHTML+=`<tr><td class="u-name">${u.username}</td><td><span class="badge ${u.role==='admin'?'gold':'blue'}"><span class="d"></span>${u.role==='admin'?'مدير':'موزّع'}</span></td><td style="color:var(--gold-b);font-weight:700">${(u.credits||0).toLocaleString('en')}</td><td><span class="badge ${blocked?'no':'ok'}"><span class="d"></span>${blocked?'موقوف':'نشط'}</span></td><td><div class="row-act"><button class="btn sm" onclick="creditForm('${u.id}','${u.username}',${u.credits||0})">رصيد</button>${u.role!=='admin'?`<button class="btn blue sm" onclick="toggleUser('${u.id}',${blocked?0:1})">${blocked?'تفعيل':'إيقاف'}</button><button class="btn danger sm" onclick="delUser('${u.id}','${u.username}')">حذف</button>`:''}</div></td></tr>`; }); }catch(e){ toast('err','تعذّر التحميل','فشل جلب الموزّعين'); } }
+function userForm(){ openForm({title:'موزّع جديد',sub:'سيظهر فوراً ويمكنه إصدار حسابات',icon:'edit',submitLabel:'إنشاء الموزّع',fields:[{key:'username',label:'اسم المستخدم',placeholder:'مثال: reseller2'},{key:'password',label:'كلمة المرور',placeholder:'كلمة مرور قوية'},{key:'credits',label:'الرصيد الابتدائي',type:'number',value:0},{key:'role',label:'الدور',type:'select',value:'reseller',options:[{v:'reseller',label:'موزّع'},{v:'admin',label:'مدير'}]}],onSubmit:async v=>{ const d=await api('/api/users/create',v); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadUsers();}else toast('err','تعذّر الإنشاء',d.message); } }); }
+function creditForm(id,name,cur){ openForm({title:'شحن رصيد موزّع',sub:`الموزّع: ${name} • الرصيد الحالي: ${cur}`,icon:'edit',submitLabel:'تطبيق',fields:[{key:'amount',label:'المقدار',type:'number',value:100},{key:'mode',label:'العملية',type:'select',value:'add',options:[{v:'add',label:'إضافة إلى الرصيد'},{v:'set',label:'ضبط الرصيد على قيمة معيّنة'}]}],onSubmit:async v=>{ const d=await api('/api/users/credit',Object.assign({id},v)); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadUsers();loadStats();}else toast('err','فشل التحديث',d.message); } }); }
+function toggleUser(id,block){ const act=block?'إيقاف':'تفعيل'; confirmAction(act+' الموزّع',`سيتم ${act} هذا الموزّع ومنعه من الدخول عند الإيقاف.`, async()=>{ const d=await api('/api/users/toggle',{id,status:block?'blocked':'active'}); if(d.success){toast('ok',d.message);loadUsers();}else toast('err','فشل',d.message); }); }
+function delUser(id,name){ confirmAction('حذف الموزّع',`سيتم حذف «${name}» نهائياً (لن تُحذف حساباته السابقة).`, async()=>{ const d=await apiDel('/api/users/'+id); if(d.success){toast('ok',d.message);loadUsers();}else toast('err','فشل الحذف',d.message); }); }
+
+/* ===== Servers (كونسول المحرّك) ===== */
+function SRV_FIELDS(){ return srvDraft ? [
+  {key:'display_name',label:'اسم العرض',value:srvDraft.display_name||'',placeholder:'مثال: فودافون WS/TLS'},
+  {key:'company_name',label:'الشركة',value:srvDraft.company_name||'',placeholder:'فودافون / اورنج / …'},
+  {key:'engine',label:'محرّك النفق',type:'select',value:srvDraft.engine||'v2ray',on:'toggleVFields()',options:[{v:'v2ray',label:'V2Ray / Xray'},{v:'openvpn',label:'OpenVPN (قريباً)'},{v:'wireguard',label:'WireGuard (قريباً)'}]},
+  {key:'is_active',label:'مفعّل (ظاهر للمستخدمين)',type:'checkbox',value:srvDraft.is_active!==0},
+  {key:'host',label:'المضيف (Host)',value:srvDraft.host||'',placeholder:'vpn1.example.com',on:'refreshPreview()',full:true},
+  {key:'port',label:'المنفذ (Port)',type:'number',value:srvDraft.port??443,on:'refreshPreview()'},
+  {key:'sni_hostname',label:'SNI Hostname',value:srvDraft.sni_hostname||'',placeholder:'web.vodafone.com.eg',on:'refreshPreview()'},
+  {key:'ping_ms',label:'البينج (ms)',type:'number',value:srvDraft.ping_ms??50},
+  {key:'is_gaming',label:'سيرفر جيمنج',type:'checkbox',value:!!srvDraft.is_gaming},
+  {key:'protocol',label:'البروتوكول',type:'select',value:srvDraft.protocol||'vmess',on:'refreshPreview()',options:[{v:'vmess',label:'VMess'},{v:'vless',label:'VLESS'},{v:'trojan',label:'Trojan'}]},
+  {key:'network',label:'نوع النقل',type:'select',value:srvDraft.network||'ws',on:'refreshPreview()',options:[{v:'ws',label:'WebSocket'},{v:'grpc',label:'gRPC'},{v:'tcp',label:'TCP'},{v:'h2',label:'HTTP/2'}]},
+  {key:'security',label:'الأمان',type:'select',value:srvDraft.security||'tls',on:'refreshPreview()',options:[{v:'tls',label:'TLS'},{v:'none',label:'بدون (none)'}]},
+  {key:'uuid',label:'UUID / كلمة Trojan',value:srvDraft.uuid||'',placeholder:'a3482e88-686a-…',on:'refreshPreview()',full:true},
+  {key:'path',label:'المسار (ws / h2 path)',value:srvDraft.path||'/',placeholder:'/',on:'refreshPreview()'},
+  {key:'ws_host',label:'Host Header (ws)',value:srvDraft.ws_host||'',placeholder:'يُترك فارغاً = SNI',on:'refreshPreview()'},
+  {key:'grpc_service',label:'gRPC Service Name',value:srvDraft.grpc_service||'TunService',on:'refreshPreview()'},
+  {key:'alter_id',label:'AlterID (vmess)',type:'number',value:srvDraft.alter_id??0,on:'refreshPreview()'},
+  {key:'vmess_security',label:'VMess Security',type:'select',value:srvDraft.vmess_security||'auto',on:'refreshPreview()',options:[{v:'auto',label:'auto'},{v:'aes-128-gcm',label:'aes-128-gcm'},{v:'chacha20-poly1305',label:'chacha20-poly1305'},{v:'none',label:'none'}]},
+  {key:'allow_insecure',label:'السماح بشهادة غير موثوقة (لا يُنصح)',type:'checkbox',value:!!srvDraft.allow_insecure,on:'refreshPreview()'}
+] : []; }
+function srvPreviewHTML(){ return `<div class="sec" style="margin-top:14px"><div class="sec-t"><span class="b"></span>معاينة الإعداد المُولَّد (config.json)</div>
+  <div class="preview-wrap"><div class="preview-bar"><span class="ttl">⚙ V2Ray config</span><span class="live"><span class="d"></span>معاينة حيّة</span><button class="btn cyan sm" onclick="copyPreview()">⧉ نسخ</button></div><pre class="preview-code mono" id="srvPreviewCode"></pre></div>
+  <p style="font-size:11.5px;color:var(--mut);margin-top:8px">هذا بالضبط ما سيُرسل للتطبيق عبر <span class="mono" style="color:var(--cyan)">/api/servers/:id/v2config</span> ليُمرَّر إلى <span class="mono" style="color:var(--gold-b)">setConfigureFileContent</span>.</p></div>`; }
+async function loadServers(){ try{ const d=await api('/api/servers'); const body=document.getElementById('serversBody'),empty=document.getElementById('emptySrv'); body.innerHTML=''; const list=d.servers||[]; if(!list.length){empty.style.display='block';return;} empty.style.display='none'; list.forEach(s=>{ const off=s.is_active===0; const eng=(s.engine||'v2ray'); const engBadge=eng==='v2ray'?'cyan':eng==='wireguard'?'blue':'gold'; body.innerHTML+=`<tr><td class="u-name">${s.display_name}</td><td><span class="badge ${engBadge}"><span class="d"></span>${eng}</span></td><td class="mono" style="color:var(--mut);font-size:12.5px">${(s.protocol||'—').toUpperCase()}</td><td class="mono" style="color:var(--mut);font-size:12.5px">${(s.network||'—').toUpperCase()}</td><td class="mono" style="color:var(--blue)">${s.ping_ms}ms</td><td><span class="badge ${off?'no':'ok'}"><span class="d"></span>${off?'موقوف':'مفعّل'}</span></td><td><div class="row-act"><button class="btn blue sm" onclick='serverForm(${JSON.stringify(s)})'>تعديل</button><button class="btn cyan sm" onclick='previewSaved("${s.id}")'>config</button><button class="btn ghost sm" onclick="toggleServer('${s.id}',${off?1:0})">${off?'تفعيل':'إيقاف'}</button><button class="btn danger sm" onclick="delServer('${s.id}','${s.display_name}')">حذف</button></div></td></tr>`; }); }catch(e){ toast('err','تعذّر التحميل','فشل جلب السيرفرات'); } }
+function serverForm(s){
+  srvDraft = s ? Object.assign({},s) : {engine:'v2ray',protocol:'vmess',network:'ws',security:'tls',is_active:1,port:443,path:'/',ping_ms:50,alter_id:0,vmess_security:'auto',grpc_service:'TunService'};
+  const fields=SRV_FIELDS();
+  document.getElementById('srvModal').innerHTML=`
+    <div class="modal-h"><div class="chk cyan">⚙</div><div><h4 class="disp">${s?'تعديل سيرفر':'إضافة سيرفر جديد'}</h4><p>كونسول المحرّك — الحقول تتكيّف مع اختيارك، والمعاينة تحدّث نفسها فوراً</p></div></div>
+    <div class="modal-b">
+      <div class="form">${fields.map(buildField).join('')}</div>
+      <div class="vgroup ${(srvDraft.engine||'v2ray')==='v2ray'?'show':''}" id="v2fields"></div>
+      ${srvPreviewHTML()}
+    </div>
+    <div class="modal-f"><button class="btn" id="srvSave">حفظ السيرفر</button><button class="btn ghost" onclick="hide('srvBackdrop')">إلغاء</button></div>`;
+  document.getElementById('srvBackdrop').classList.add('show');
+  refreshPreview();
+  document.getElementById('srvSave').onclick=async()=>{ const vals=collectFields(fields); const b=document.getElementById('srvSave'); b.disabled=true; b.innerHTML='<span class="spin"></span>جارٍ…'; try{ const d=await api('/api/servers/save',Object.assign({id:s?.id},vals)); if(d.success){toast('ok',d.message);hide('srvBackdrop');loadServers();}else toast('err','تعذّر الحفظ',d.message); }finally{ b.disabled=false; b.textContent='حفظ السيرفر'; } };
+}
+async function previewSaved(id){
+  try{ const d=await api('/api/servers/'+id+'/v2config'); if(!d.success){toast('err','تعذّر التوليد',d.message);return;}
+    srvDraft={engine:d.engine};
+    document.getElementById('srvModal').innerHTML=`
+      <div class="modal-h"><div class="chk cyan">⚙</div><div><h4 class="disp">الإعداد المحفوظ</h4><p>ما سيستلمه التطبيق لهذا السيرفر الآن</p></div></div>
+      <div class="modal-b"><div class="preview-wrap"><div class="preview-bar"><span class="ttl">⚙ V2Ray config (محفوظ)</span><button class="btn cyan sm" onclick="copyPreview()">⧉ نسخ</button></div><pre class="preview-code mono" id="srvPreviewCode">${syntaxHL(JSON.stringify(d.config,null,2))}</pre></div></div>
+      <div class="modal-f"><button class="btn ghost" onclick="hide('srvBackdrop')">إغلاق</button></div>`;
+    document.getElementById('srvBackdrop').classList.add('show');
+  }catch(e){ toast('err','خطأ','تعذّر جلب الإعداد'); }
+}
+function toggleServer(id,on){ api('/api/servers/toggle',{id,is_active:on}).then(d=>{ if(d.success){toast('ok',d.message);loadServers();}else toast('err','فشل',d.message); }); }
+function delServer(id,name){ confirmAction('حذف السيرفر',`سيتم حذف «${name}» من قائمة السيرفرات.`, async()=>{ const d=await apiDel('/api/servers/'+id); if(d.success){toast('ok',d.message);loadServers();}else toast('err','فشل الحذف',d.message); }); }
+
+/* ===== Nav / reveal / keys ===== */
+document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>{ document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('on')); a.classList.add('on'); const t=document.getElementById('sec-'+a.dataset.go); if(t)t.scrollIntoView({behavior:'smooth',block:'start'}); }));
+function revealAll(){ const io=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);} }),{threshold:.1}); document.querySelectorAll('.reveal').forEach(el=>io.observe(el)); }
+document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&document.getElementById('loginScreen').style.display!=='none')doLogin(); if(e.key==='Escape'){hide('backdrop');hide('dynBackdrop');hide('accBackdrop');hide('srvBackdrop');} });
+if(token) verify();
+</script>
+</body>
+</html>
