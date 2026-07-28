@@ -355,4 +355,196 @@ function hide(id){ document.getElementById(id).classList.remove('show'); }
 /* ===== Dynamic form / confirm ===== */
 function buildField(f){
   if(f.type==='checkbox') return `<label class="check"><input type="checkbox" id="f_${f.key}" ${f.value?'checked':''}><span class="box"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><path d="M20 6 9 17l-5-5"/></svg></span>${f.label}</label>`;
-  if(f.type==='select'){ const opts=(f.options||[]).map(o=>`<option value="${o.v}" ${String(o.v)===String(f.value)?'selected':''}>${o.label}</option>`).join(''); return `<div class="field
+  if(f.type==='select'){ const opts=(f.options||[]).map(o=>`<option value="${o.v}" ${String(o.v)===String(f.value)?'selected':''}>${o.label}</option>`).join(''); return `<div class="field ${f.full?'full':''}"><label>${f.label}</label><select class="sel" id="f_${f.key}">${opts}</select></div>`; }
+  if(f.type==='textarea') return `<div class="field ${f.full?'full':''}"><label>${f.label}</label><textarea class="ta" id="f_${f.key}" placeholder="${f.placeholder||''}">${f.value||''}</textarea></div>`;
+  return `<div class="field ${f.full?'full':''}"><label>${f.label}</label><input class="inp" id="f_${f.key}" type="${f.type||'text'}" value="${f.value??''}" placeholder="${f.placeholder||''}"></div>`;
+}
+function collectFields(fields){ const out={}; fields.forEach(f=>{ const el=document.getElementById('f_'+f.key); if(!el)return; if(f.type==='checkbox')out[f.key]=el.checked; else if(f.type==='number')out[f.key]=el.value===''?(f.def??0):Number(el.value); else out[f.key]=el.value.trim(); }); return out; }
+function openForm(opts){
+  const {title, sub, icon='edit', fields, submitLabel='حفظ', onSubmit} = opts;
+  const grid = fields.some(f=>f.full) ? 'form' : '';
+  document.getElementById('dynModal').innerHTML = `
+    <div class="modal-h"><div class="chk ${icon}">${icon==='warn'?'!':'✎'}</div><div><h4 class="disp">${title}</h4><p>${sub||''}</p></div></div>
+    <div class="modal-b"><div class="${grid}">${fields.map(buildField).join('')}</div></div>
+    <div class="modal-f"><button class="btn" id="dynSave">${submitLabel}</button><button class="btn ghost" onclick="hide('dynBackdrop')">إلغاء</button></div>`;
+  document.getElementById('dynBackdrop').classList.add('show');
+  document.getElementById('dynSave').onclick = async ()=>{ const vals=collectFields(fields); const b=document.getElementById('dynSave'); b.disabled=true; b.innerHTML='<span class="spin"></span>جارٍ…'; try{ await onSubmit(vals); }finally{ b.disabled=false; b.textContent=submitLabel; } };
+}
+function confirmAction(title, msg, onYes){
+  document.getElementById('dynModal').innerHTML = `
+    <div class="modal-h"><div class="chk warn">!</div><div><h4 class="disp">${title}</h4><p>${msg}</p></div></div>
+    <div class="modal-f" style="padding-top:22px"><button class="btn danger" id="dynYes">نعم، تأكيد</button><button class="btn ghost" onclick="hide('dynBackdrop')">إلغاء</button></div>`;
+  document.getElementById('dynBackdrop').classList.add('show');
+  document.getElementById('dynYes').onclick = async ()=>{ const b=document.getElementById('dynYes'); b.disabled=true; b.innerHTML='<span class="spin w"></span>…'; try{ await onYes(); }finally{ hide('dynBackdrop'); } };
+}
+
+/* ===== API ===== */
+async function api(path, body){ const opt={headers:{'Authorization':'Bearer '+token}}; if(body!==undefined){opt.method='POST';opt.headers['Content-Type']='application/json';opt.body=JSON.stringify(body);} const r=await fetch(API+path,opt); return r.json(); }
+async function apiDel(path){ const r=await fetch(API+path,{method:'DELETE',headers:{'Authorization':'Bearer '+token}}); return r.json(); }
+function rndPass(){ return Math.random().toString(36).slice(-8); }
+
+/* ===== Result modal ===== */
+function openResult(d){ last=d; document.getElementById('mUser').textContent=d.username; document.getElementById('mPass').textContent=d.password; document.getElementById('mPlan').textContent=d.plan; document.getElementById('mExp').textContent=new Date(d.expiry_date).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'}); document.getElementById('backdrop').classList.add('show'); }
+function cpOne(id){ navigator.clipboard.writeText(document.getElementById(id).textContent); toast('ok','تم النسخ','تم نسخ الحقل إلى الحافظة'); }
+function copyAll(){ if(!last)return; navigator.clipboard.writeText(`B.T.C VPN — حساب جديد\nالمستخدم: ${last.username}\nكلمة المرور: ${last.password}\nالباقة: ${last.plan}\nالانتهاء: ${last.expiry_date}`); toast('ok','تم نسخ البيانات','كل تفاصيل الحساب في الحافظة'); }
+
+/* ===== Clock / greet / counter ===== */
+function animate(el,end){ const dur=900,t0=performance.now(); (function s(t){ const p=Math.min((t-t0)/dur,1),e=1-Math.pow(1-p,3); el.textContent=Math.round(end*e).toLocaleString('en'); if(p<1)requestAnimationFrame(s); })(t0); }
+function tick(){ document.getElementById('clock').textContent=new Date().toLocaleTimeString('ar-EG',{hour12:false}); }
+setInterval(tick,1000); tick();
+function setGreet(name){ const h=new Date().getHours(); const g=h<12?'صباح الخير':h<18?'طاب يومك':'مساء الخير'; document.getElementById('greet').innerHTML=`${g}، <em>${name}</em>`; }
+
+/* ===== Auth ===== */
+async function verify(){ try{ const d=await api('/api/me'); if(d.success && d.data.role){ me=d.data; enter(); } else doLogout(); }catch(e){ doLogout(); } }
+async function doLogin(){
+  const u=document.getElementById('username').value.trim(), p=document.getElementById('password').value, b=document.getElementById('loginBtn');
+  if(!u||!p){ toast('err','بيانات ناقصة','أدخل اسم المستخدم وكلمة المرور'); return; }
+  b.disabled=true; b.innerHTML='<span class="spin"></span>جارٍ التحقق…';
+  try{
+    const r=await fetch(API+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    const d=await r.json(); b.disabled=false; b.textContent='تسجيل الدخول';
+    if(d.success&&d.data){ token=d.data.token; localStorage.setItem('btc_token',token); me=d.data.user; enter(); toast('ok','أهلاً بك','تم فتح لوحة التحكم'); }
+    else toast('err','فشل الدخول', d.message||'تحقق من البيانات');
+  }catch(e){ b.disabled=false; b.textContent='تسجيل الدخول'; toast('err','تعذّر الاتصال','الخادم لا يستجيب'); }
+}
+function doLogout(){ localStorage.removeItem('btc_token'); token=null; location.reload(); }
+function enter(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='grid';
+  if(me.role==='admin') document.body.classList.add('is-admin');
+  const name=me.username, role=me.role==='admin'?'مدير النظام':'موزّع';
+  document.getElementById('meName').textContent=name; document.getElementById('meRole').textContent=role;
+  document.getElementById('meAv').textContent=name.charAt(0).toUpperCase();
+  document.getElementById('greetName').textContent=name; setGreet(name);
+  buildBars(); loadStats(); loadAccounts(); loadPlans();
+  if(me.role==='admin'){ loadUsers(); loadServers(); }
+  revealAll();
+}
+function buildBars(){ const c=document.getElementById('bars'); c.innerHTML=''; for(let i=0;i<14;i++){ const b=document.createElement('i'); b.style.height=(20+Math.random()*80)+'%'; b.style.animationDelay=(i*0.05)+'s'; c.appendChild(b); } }
+
+/* ===== Stats ===== */
+async function loadStats(){ try{ const d=await api('/api/stats'); if(d.success){ animate(document.getElementById('sCredits'),d.stats.available_credits||0); animate(document.getElementById('sTotal'),d.stats.total_accounts||0); animate(document.getElementById('sActive'),d.stats.active_accounts||0); animate(document.getElementById('sFrozen'),d.stats.frozen_accounts||0); animate(document.getElementById('sExpired'),d.stats.expired_accounts||0); } }catch(e){} }
+
+/* ===== Plans ===== */
+async function loadPlans(){ try{ const d=await api('/api/plans'); if(!d.success)return; plansCache=d.plans||[]; const sel=document.getElementById('accPlan'); sel.innerHTML=plansCache.length?plansCache.map(p=>`<option value="${p.id}">${p.is_gaming?'🎮 ':''}${p.name_ar} — ${p.duration_days} يوم (${p.price} رصيد)</option>`).join(''):'<option value="">لا توجد باقات — أضف واحدة من الإدارة</option>'; if(me&&me.role==='admin')renderPlans(); }catch(e){} }
+function renderPlans(){ const body=document.getElementById('plansBody'),empty=document.getElementById('emptyPlans'); body.innerHTML=''; if(!plansCache.length){empty.style.display='block';return;} empty.style.display='none'; plansCache.forEach(p=>{ body.innerHTML+=`<tr><td class="u-name">${p.name_ar}</td><td class="mono" style="color:var(--mut)">${p.duration_days} يوم</td><td class="mono" style="color:var(--mut)">${(p.data_limit_mb>=999999?'∞':p.data_limit_mb+' MB')}</td><td style="color:var(--gold-b);font-weight:700">${p.price}</td><td><span class="badge ${p.is_gaming?'blue':'gold'}"><span class="d"></span>${p.is_gaming?'جيمنج':'عادي'}</span></td><td><div class="row-act"><button class="btn blue sm" onclick='planForm(${JSON.stringify(p)})'>تعديل</button><button class="btn danger sm" onclick="delPlan('${p.id}','${p.name_ar}')">حذف</button></div></td></tr>`; }); }
+function planForm(p){ openForm({ title:p?'تعديل باقة':'باقة جديدة', sub:'تظهر فوراً في قائمة الإصدار', icon:'edit', submitLabel:'حفظ الباقة', fields:[ {key:'name_ar',label:'اسم الباقة',value:p?.name_ar||'',placeholder:'مثال: شهري VIP'}, {key:'price',label:'السعر بالرصيد',type:'number',value:p?.price??0}, {key:'duration_days',label:'المدة بالأيام',type:'number',value:p?.duration_days??30}, {key:'data_limit_mb',label:'حد البيانات (MB)',type:'number',value:p?.data_limit_mb??5000,placeholder:'999999 = غير محدود'}, {key:'is_gaming',label:'باقة جيمنج (بينج منخفض)',type:'checkbox',value:!!p?.is_gaming,full:true} ], onSubmit:async v=>{ const d=await api('/api/plans/save',Object.assign({id:p?.id},v)); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadPlans();}else toast('err','تعذّر الحفظ',d.message); } }); }
+function delPlan(id,name){ confirmAction('حذف الباقة',`سيتم حذف «${name}» نهائياً. الحسابات القديمة لن تتأثر.`, async()=>{ const d=await apiDel('/api/plans/'+id); if(d.success){toast('ok',d.message);loadPlans();}else toast('err','فشل الحذف',d.message); }); }
+
+/* ===== Create account ===== */
+async function createAccount(){ const u=document.getElementById('accUser').value.trim(),p=document.getElementById('accPass').value.trim(),plan_id=document.getElementById('accPlan').value,is_random=document.getElementById('isRandom').checked,b=document.getElementById('createBtn'); if(!plan_id){toast('err','اختر باقة','لا توجد باقة محدّدة');return;} b.disabled=true; b.innerHTML='<span class="spin"></span>جارٍ الإصدار…'; try{ const d=await api('/api/account/create',{username:u||null,password:p||null,plan_id,is_random}); b.disabled=false; b.textContent='إصدار الحساب'; if(d.success){openResult(d.data);toast('ok','تم الإصدار','الحساب '+d.data.username+' جاهز');loadStats();loadAccounts();resetForm();}else toast('err','تعذّر الإصدار',d.message); }catch(e){ b.disabled=false; b.textContent='إصدار الحساب'; toast('err','خطأ في الاتصال','لم نصل للخادم'); } }
+function resetForm(){ document.getElementById('accUser').value=''; document.getElementById('accPass').value=''; }
+
+/* ===== Accounts + status badge ===== */
+function accStatus(a){ if(a.status==='blocked')return{c:'no',t:'محظور'}; if(a.status==='frozen')return{c:'gold',t:'مجمّد'}; if(a.status==='expired'||new Date(a.expiry_date)<new Date())return{c:'no',t:'منتهي'}; return{c:'ok',t:'نشط'}; }
+async function loadAccounts(){ try{ const d=await api('/api/accounts'); const body=document.getElementById('accBody'),empty=document.getElementById('emptyAcc'); body.innerHTML=''; const list=d.accounts||[]; if(!list.length){empty.style.display='block';return;} empty.style.display='none'; list.forEach(a=>{ const st=accStatus(a); const exp=new Date(a.expiry_date); const wifi=a.allow_hotspot?`<span class="badge blue"><span class="d"></span>${a.max_hotspot_devices||0}</span>`:`<span class="badge no"><span class="d"></span>مغلق</span>`; body.innerHTML+=`<tr><td class="u-name">${a.username}</td><td>${a.plan_name||'—'}</td><td>${wifi}</td><td class="mono" style="color:var(--mut)">${exp.toLocaleDateString('ar-EG')}</td><td><span class="badge ${st.c}"><span class="d"></span>${st.t}</span></td><td><div class="row-act"><button class="btn blue sm" onclick='manageAccount(${JSON.stringify(a).replace(/'/g,"&#39;")})'>إدارة</button></div></td></tr>`; }); }catch(e){ toast('err','تعذّر التحميل','فشل جلب الحسابات'); } }
+
+/* ===== Manage account modal ===== */
+function manageAccount(a){
+  currentAcc = a;
+  const st = accStatus(a);
+  const exp = new Date(a.expiry_date).toLocaleDateString('ar-EG',{year:'numeric',month:'long',day:'numeric'});
+  const planOpts = plansCache.map(p=>`<option value="${p.id}" ${p.id===a.plan_id?'selected':''}>${p.name_ar} — ${p.duration_days} يوم</option>`).join('');
+  document.getElementById('accModal').innerHTML = `
+    <div class="modal-h">
+      <div class="chk gold">⚙</div>
+      <div><h4 class="disp">إدارة الحساب</h4><p class="mono" style="color:var(--gold-b)">${a.username}</p></div>
+      <span class="badge ${st.c} hbadge"><span class="d"></span>${st.t}</span>
+    </div>
+    <div class="modal-b">
+      <div class="sec">
+        <div class="sec-t"><span class="b"></span>نظرة عامة</div>
+        <div class="row" style="margin-bottom:8px"><span class="k">الباقة الحالية</span><span class="v gold">${a.plan_name||'—'}</span></div>
+        <div class="row" style="margin-bottom:8px"><span class="k">تاريخ الانتهاء</span><span class="v">${exp}</span></div>
+        <div class="row" style="margin-bottom:8px"><span class="k">الجلسات / الساعات</span><span class="v">${a.total_sessions||0} / ${(a.session_hours||0).toFixed(1)}h</span></div>
+        <div class="row"><span class="k">كود الإحالة</span><span class="v">${a.referral_code||'—'}</span></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-t"><span class="b"></span>الحالة والأمان</div>
+        <div class="row-act" style="margin-bottom:10px">
+          <button class="btn green sm" onclick="setStatus('active')">✓ تفعيل / فك تجميد</button>
+          <button class="btn sm" onclick="setStatus('frozen')">🔒 تجميد</button>
+          <button class="btn danger sm" onclick="setStatus('blocked')">⛔ حظر</button>
+        </div>
+        <div class="field"><label>سبب التجميد / الحظر (اختياري — يظهر للمستخدم)</label><input class="inp" id="accReason" placeholder="مثال: رصد دخول من جهاز آخر" value="${a.frozen_reason||''}"></div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-t"><span class="b"></span>كلمة المرور</div>
+        <div class="inline">
+          <div class="field"><label>كلمة مرور جديدة</label><input class="inp" id="accNewPwd" placeholder="اكتب أو ولّد"></div>
+          <button class="btn ghost" onclick="document.getElementById('accNewPwd').value=rndPass()">توليد</button>
+          <button class="btn blue" onclick="applyPwd()">تطبيق</button>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-t"><span class="b"></span>التمديد والباقة</div>
+        <div class="inline" style="margin-bottom:10px">
+          <div class="field"><label>إضافة أيام</label><input class="inp" id="accDays" type="number" placeholder="30"></div>
+          <button class="btn green" onclick="extendAcc()">تمديد</button>
+        </div>
+        <div class="inline">
+          <div class="field"><label>تغيير الباقة (دون تمديد)</label><select class="sel" id="accPlanCh">${planOpts}</select></div>
+          <button class="btn blue" onclick="changePlan()">تطبيق</button>
+        </div>
+      </div>
+
+      <div class="sec">
+        <div class="sec-t"><span class="b"></span>الواي فاي (Hotspot)</div>
+        <div class="inline" style="margin-bottom:10px">
+          <div class="field"><label>السماح بمشاركة الواي فاي</label><select class="sel" id="accWifi"><option value="1" ${a.allow_hotspot?'selected':''}>مسموح</option><option value="0" ${!a.allow_hotspot?'selected':''}>ممنوع</option></select></div>
+          <div class="field"><label>أقصى عدد أجهزة</label><input class="inp" id="accWifiMax" type="number" value="${a.max_hotspot_devices||0}"></div>
+          <button class="btn" onclick="saveWifi()">حفظ</button>
+        </div>
+        <div class="row-act" style="margin-bottom:8px"><button class="btn ghost sm" onclick="loadHotspot()">📡 تحميل الأجهزة المتصلة</button></div>
+        <div class="devlist" id="accDevList"><div class="empty" style="padding:18px"><p>اضغط «تحميل الأجهزة» لعرض المتصلين بالواي فاي</p></div></div>
+      </div>
+    </div>
+    <div class="modal-f"><button class="btn ghost" onclick="hide('accBackdrop')">إغلاق</button></div>`;
+  document.getElementById('accBackdrop').classList.add('show');
+}
+async function refreshCurrent(){ const d=await api('/api/accounts'); const f=(d.accounts||[]).find(x=>x.id===currentAcc.id); if(f){ manageAccount(f); } loadAccounts(); loadStats(); }
+async function setStatus(s){ const reason=document.getElementById('accReason')?.value||''; const d=await api('/api/accounts/update',{id:currentAcc.id,status:s,frozen_reason:reason}); if(d.success){toast('ok',d.message);refreshCurrent();}else toast('err','فشل',d.message); }
+async function applyPwd(){ const v=document.getElementById('accNewPwd').value.trim(); if(!v){toast('err','أدخل كلمة مرور','الحقل فارغ');return;} const d=await api('/api/accounts/update',{id:currentAcc.id,new_password:v}); if(d.success){toast('ok','تم ضبط كلمة السر','الجديدة: '+v); navigator.clipboard.writeText(v).catch(()=>{});}else toast('err','فشل',d.message); }
+async function extendAcc(){ const n=Number(document.getElementById('accDays').value); if(!n||n<1){toast('err','أدخل عدد أيام','قيمة غير صالحة');return;} const d=await api('/api/accounts/update',{id:currentAcc.id,add_days:n}); if(d.success){toast('ok',d.message);refreshCurrent();}else toast('err','فشل',d.message); }
+async function changePlan(){ const pid=document.getElementById('accPlanCh').value; if(pid===currentAcc.plan_id){toast('info','لا تغيير','نفس الباقة');return;} const d=await api('/api/accounts/update',{id:currentAcc.id,plan_id:pid}); if(d.success){toast('ok',d.message);refreshCurrent();}else toast('err','فشل',d.message); }
+async function saveWifi(){ const allow=document.getElementById('accWifi').value==='1'; const max=Number(document.getElementById('accWifiMax').value)||0; const d=await api('/api/accounts/update',{id:currentAcc.id,allow_hotspot:allow,max_hotspot_devices:max}); if(d.success){toast('ok',d.message);refreshCurrent();}else toast('err','فشل',d.message); }
+
+/* ===== Hotspot devices inside account modal ===== */
+async function loadHotspot(){
+  const box=document.getElementById('accDevList'); box.innerHTML='<div class="empty" style="padding:18px"><p>جارٍ التحميل…</p></div>';
+  try{
+    const d=await api('/api/hotspot/'+currentAcc.id); const list=d.devices||[];
+    if(!list.length){ box.innerHTML='<div class="empty" style="padding:18px"><div class="e-ic">📵</div><p>لا أجهزة متصلة بالواي فاي حالياً</p></div>'; return; }
+    box.innerHTML = list.map(dev=>{
+      const linked = dev.linked_account_id ? `<span class="badge ok"><span class="d"></span>مربوط</span>` : `<button class="btn green sm" onclick="linkDevice('${dev.id}')">🔗 ربط باشتراك</button>`;
+      return `<div class="dev"><div class="di"><b>${dev.device_name||'جهاز'}</b><small class="mono">${dev.mac_address||'—'} • ${dev.ip_address||'—'}</small></div><div class="da">${linked}<button class="btn danger sm" onclick="delDevice('${dev.id}')">حذف</button></div></div>`;
+    }).join('');
+  }catch(e){ box.innerHTML='<div class="empty" style="padding:18px"><p>تعذّر التحميل</p></div>'; }
+}
+function linkDevice(devId){ openForm({ title:'ربط جهاز باشتراك (عائلة)', sub:'سيُنشأ حساب تابع ويُربط هذا الجهاز به', icon:'edit', submitLabel:'إنشاء وربط', fields:[ {key:'plan_id',label:'باقة الحساب التابع',type:'select',options:plansCache.map(p=>({v:p.id,label:`${p.name_ar} — ${p.price} رصيد`}))} ], onSubmit:async v=>{ const d=await api('/api/hotspot/link',{device_id:devId,plan_id:v.plan_id}); if(d.success){hide('dynBackdrop');openResult(d.data);toast('ok','تم الربط','الحساب التابع '+d.data.username+' جاهز');loadHotspot();loadAccounts();loadStats();}else toast('err','فشل الربط',d.message); } }); }
+async function delDevice(devId){ confirmAction('حذف الجهاز','سيُزال هذا الجهاز من قائمة الواي فاي للحساب.', async()=>{ const d=await apiDel('/api/hotspot/'+devId); if(d.success){toast('ok',d.message);loadHotspot();}else toast('err','فشل',d.message); }); }
+
+/* ===== Users ===== */
+async function loadUsers(){ try{ const d=await api('/api/users'); const body=document.getElementById('usersBody'),empty=document.getElementById('emptyUsers'); body.innerHTML=''; const list=d.users||[]; if(!list.length){empty.style.display='block';return;} empty.style.display='none'; list.forEach(u=>{ const blocked=u.status==='blocked'; body.innerHTML+=`<tr><td class="u-name">${u.username}</td><td><span class="badge ${u.role==='admin'?'gold':'blue'}"><span class="d"></span>${u.role==='admin'?'مدير':'موزّع'}</span></td><td style="color:var(--gold-b);font-weight:700">${(u.credits||0).toLocaleString('en')}</td><td><span class="badge ${blocked?'no':'ok'}"><span class="d"></span>${blocked?'موقوف':'نشط'}</span></td><td><div class="row-act"><button class="btn sm" onclick="creditForm('${u.id}','${u.username}',${u.credits||0})">رصيد</button>${u.role!=='admin'?`<button class="btn blue sm" onclick="toggleUser('${u.id}',${blocked?0:1})">${blocked?'تفعيل':'إيقاف'}</button><button class="btn danger sm" onclick="delUser('${u.id}','${u.username}')">حذف</button>`:''}</div></td></tr>`; }); }catch(e){ toast('err','تعذّر التحميل','فشل جلب الموزّعين'); } }
+function userForm(){ openForm({ title:'موزّع جديد', sub:'سيظهر فوراً ويمكنه إصدار حسابات', icon:'edit', submitLabel:'إنشاء الموزّع', fields:[ {key:'username',label:'اسم المستخدم',placeholder:'مثال: reseller2'}, {key:'password',label:'كلمة المرور',placeholder:'كلمة مرور قوية'}, {key:'credits',label:'الرصيد الابتدائي',type:'number',value:0}, {key:'role',label:'الدور',type:'select',value:'reseller',options:[{v:'reseller',label:'موزّع'},{v:'admin',label:'مدير'}]} ], onSubmit:async v=>{ const d=await api('/api/users/create',v); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadUsers();}else toast('err','تعذّر الإنشاء',d.message); } }); }
+function creditForm(id,name,cur){ openForm({ title:'شحن رصيد', sub:`الموزّع: ${name} • الرصيد الحالي: ${cur}`, icon:'edit', submitLabel:'تطبيق', fields:[ {key:'amount',label:'المقدار',type:'number',value:100}, {key:'mode',label:'العملية',type:'select',value:'add',options:[{v:'add',label:'إضافة إلى الرصيد'},{v:'set',label:'ضبط الرصيد على قيمة معيّنة'}]} ], onSubmit:async v=>{ const d=await api('/api/users/credit',Object.assign({id},v)); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadUsers();loadStats();}else toast('err','فشل التحديث',d.message); } }); }
+function toggleUser(id,block){ const act=block?'إيقاف':'تفعيل'; confirmAction(act+' الموزّع',`سيتم ${act} هذا الموزّع ومنعه من الدخول عند الإيقاف.`, async()=>{ const d=await api('/api/users/toggle',{id,status:block?'blocked':'active'}); if(d.success){toast('ok',d.message);loadUsers();}else toast('err','فشل',d.message); }); }
+function delUser(id,name){ confirmAction('حذف الموزّع',`سيتم حذف «${name}» نهائياً (لن تُحذف حساباته السابقة).`, async()=>{ const d=await apiDel('/api/users/'+id); if(d.success){toast('ok',d.message);loadUsers();}else toast('err','فشل الحذف',d.message); }); }
+
+/* ===== Servers ===== */
+async function loadServers(){ try{ const d=await api('/api/servers'); const body=document.getElementById('serversBody'),empty=document.getElementById('emptySrv'); body.innerHTML=''; const list=d.servers||[]; if(!list.length){empty.style.display='block';return;} empty.style.display='none'; list.forEach(s=>{ const off=s.is_active===0; body.innerHTML+=`<tr><td class="u-name">${s.display_name}</td><td style="color:var(--mut)">${s.company_name||'—'}</td><td class="mono" style="font-size:12.5px;color:var(--mut)">${s.host}:${s.port}</td><td class="mono" style="color:var(--blue)">${s.ping_ms}ms</td><td><span class="badge ${s.is_gaming?'blue':'gold'}"><span class="d"></span>${s.is_gaming?'جيمنج':'عادي'}</span></td><td><span class="badge ${off?'no':'ok'}"><span class="d"></span>${off?'موقوف':'مفعّل'}</span></td><td><div class="row-act"><button class="btn blue sm" onclick='serverForm(${JSON.stringify(s)})'>تعديل</button><button class="btn ghost sm" onclick="toggleServer('${s.id}',${off?1:0})">${off?'تفعيل':'إيقاف'}</button><button class="btn danger sm" onclick="delServer('${s.id}','${s.display_name}')">حذف</button></div></td></tr>`; }); }catch(e){ toast('err','تعذّر التحميل','فشل جلب السيرفرات'); } }
+function serverForm(s){ openForm({ title:s?'تعديل سيرفر':'إضافة سيرفر يدوي', sub:'أدخل بيانات نفق الـ VPN كاملة', icon:'edit', submitLabel:'حفظ السيرفر', fields:[ {key:'display_name',label:'اسم العرض',value:s?.display_name||'',placeholder:'مثال: فودافون 1'}, {key:'company_name',label:'الشركة',value:s?.company_name||'',placeholder:'فودافون / اورنج / …'}, {key:'host',label:'المضيف (Host)',value:s?.host||'',placeholder:'vpn1.example.com'}, {key:'port',label:'المنفذ (Port)',type:'number',value:s?.port??443}, {key:'sni_hostname',label:'SNI Hostname',value:s?.sni_hostname||'',placeholder:'web.vodafone.com.eg',full:true}, {key:'payload',label:'Payload',type:'textarea',value:s?.payload||'',placeholder:'GET / HTTP/1.1[crlf]Host: …[crlf][crlf]',full:true}, {key:'ping_ms',label:'البينج (ms)',type:'number',value:s?.ping_ms??50}, {key:'is_gaming',label:'سيرفر جيمنج',type:'checkbox',value:!!s?.is_gaming}, {key:'is_active',label:'مفعّل (ظاهر للمستخدمين)',type:'checkbox',value:s?s.is_active!==0:true} ], onSubmit:async v=>{ const d=await api('/api/servers/save',Object.assign({id:s?.id},v)); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadServers();}else toast('err','تعذّر الحفظ',d.message); } }); }
+function toggleServer(id,on){ api('/api/servers/toggle',{id,is_active:on}).then(d=>{ if(d.success){toast('ok',d.message);loadServers();}else toast('err','فشل',d.message); }); }
+function delServer(id,name){ confirmAction('حذف السيرفر',`سيتم حذف «${name}» من قائمة السيرفرات.`, async()=>{ const d=await apiDel('/api/servers/'+id); if(d.success){toast('ok',d.message);loadServers();}else toast('err','فشل الحذف',d.message); }); }
+
+/* ===== Nav / reveal / keys ===== */
+document.querySelectorAll('.nav a').forEach(a=>a.addEventListener('click',()=>{ document.querySelectorAll('.nav a').forEach(x=>x.classList.remove('on')); a.classList.add('on'); const t=document.getElementById('sec-'+a.dataset.go); if(t)t.scrollIntoView({behavior:'smooth',block:'start'}); }));
+function revealAll(){ const io=new IntersectionObserver(es=>es.forEach(e=>{ if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);} }),{threshold:.1}); document.querySelectorAll('.reveal').forEach(el=>io.observe(el)); }
+document.addEventListener('keydown',e=>{ if(e.key==='Enter'&&document.getElementById('loginScreen').style.display!=='none')doLogin(); if(e.key==='Escape'){hide('backdrop');hide('dynBackdrop');hide('accBackdrop');} });
+if(token) verify();
+</script>
+</body>
+</html>
