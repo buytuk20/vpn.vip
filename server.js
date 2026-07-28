@@ -1,6 +1,6 @@
 // ============================================
 // B.T.C VPN — الخادم الاحترافي مع Firebase
-// إدارة كاملة + Hotspot + مصادقة مزدوجة
+// إدارة كاملة + Hotspot + مصادقة مزدوجة + شحن ذاتي للمدير
 // ============================================
 const express = require('express');
 const cors = require('cors');
@@ -57,12 +57,12 @@ async function seedData() {
         }
         if ((await db.collection('plans').get()).empty) {
             const plans = [
-                { name_ar: 'تجريبي', duration_days: 1, data_limit_mb: 100, price: 0, is_gaming: 0 },
-                { name_ar: 'أسبوعي', duration_days: 7, data_limit_mb: 1000, price: 10, is_gaming: 0 },
-                { name_ar: 'شهري', duration_days: 30, data_limit_mb: 5000, price: 30, is_gaming: 0 },
-                { name_ar: '3 أشهر', duration_days: 90, data_limit_mb: 15000, price: 80, is_gaming: 0 },
-                { name_ar: 'جيمنج أسبوعي', duration_days: 7, data_limit_mb: 999999, price: 20, is_gaming: 1 },
-                { name_ar: 'جيمنج شهري', duration_days: 30, data_limit_mb: 999999, price: 50, is_gaming: 1 }
+                { name_ar: 'تجريبي', duration_days: 1, data_limit_mb: 100, price: 0, retail_price: 0, is_gaming: 0 },
+                { name_ar: 'أسبوعي', duration_days: 7, data_limit_mb: 1000, price: 10, retail_price: 15, is_gaming: 0 },
+                { name_ar: 'شهري', duration_days: 30, data_limit_mb: 5000, price: 30, retail_price: 45, is_gaming: 0 },
+                { name_ar: '3 أشهر', duration_days: 90, data_limit_mb: 15000, price: 80, retail_price: 110, is_gaming: 0 },
+                { name_ar: 'جيمنج أسبوعي', duration_days: 7, data_limit_mb: 999999, price: 20, retail_price: 30, is_gaming: 1 },
+                { name_ar: 'جيمنج شهري', duration_days: 30, data_limit_mb: 999999, price: 50, retail_price: 75, is_gaming: 1 }
             ];
             for (const p of plans) await db.collection('plans').add(p);
         }
@@ -229,7 +229,6 @@ app.post('/api/account/create', authenticateToken, staff, async (req, res) => {
     } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
 
-// تعديل شامل لحساب نهائي (حالة / سر / تمديد / باقة / hotspot)
 app.post('/api/accounts/update', authenticateToken, staff, async (req, res) => {
     try {
         const { id, status, frozen_reason, add_days, new_password, plan_id, allow_hotspot, max_hotspot_devices } = req.body;
@@ -266,9 +265,17 @@ app.get('/api/plans', authenticateToken, async (req, res) => {
 });
 app.post('/api/plans/save', authenticateToken, onlyAdmin, async (req, res) => {
     try {
-        const { id, name_ar, duration_days, data_limit_mb, price, is_gaming } = req.body;
+        const { id, name_ar, duration_days, data_limit_mb, price, retail_price, is_gaming } = req.body;
         if (!name_ar || !duration_days) return res.json({ success: false, message: 'الاسم والمدة مطلوبان' });
-        const data = { name_ar: String(name_ar).trim(), duration_days: Number(duration_days) || 1, data_limit_mb: Number(data_limit_mb) || 0, price: Number(price) || 0, is_gaming: is_gaming ? 1 : 0 };
+        const cost = Number(price) || 0;
+        const data = {
+            name_ar: String(name_ar).trim(),
+            duration_days: Number(duration_days) || 1,
+            data_limit_mb: Number(data_limit_mb) || 0,
+            price: cost,
+            retail_price: Number(retail_price) || cost,
+            is_gaming: is_gaming ? 1 : 0
+        };
         if (id) await db.collection('plans').doc(id).set(data, { merge: true }); else await db.collection('plans').add(data);
         res.json({ success: true, message: id ? 'تم تعديل الباقة' : 'تمت إضافة الباقة' });
     } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
@@ -323,6 +330,18 @@ app.post('/api/users/credit', authenticateToken, onlyAdmin, async (req, res) => 
     try { const { id, amount, mode } = req.body; const val = Math.abs(Number(amount) || 0); if (mode === 'set') await db.collection('users').doc(id).update({ credits: val }); else await db.collection('users').doc(id).update({ credits: TS.increment(val) }); res.json({ success: true, message: 'تم تحديث الرصيد' }); }
     catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
+// شحن المدير لرصيده بنفسه (المنبع) — admin فقط وعلى حسابه هو
+app.post('/api/users/self-credit', authenticateToken, onlyAdmin, async (req, res) => {
+    try {
+        const { amount } = req.body;
+        const val = Math.abs(Number(amount) || 0);
+        if (val < 1) return res.json({ success: false, message: 'قيمة غير صالحة' });
+        const ref = db.collection('users').doc(req.user.id);
+        await ref.update({ credits: TS.increment(val) });
+        const u = (await ref.get()).data();
+        res.json({ success: true, message: 'تم شحن رصيدك بنجاح', data: { credits: u.credits } });
+    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
+});
 app.post('/api/users/toggle', authenticateToken, onlyAdmin, async (req, res) => {
     try { const { id, status } = req.body; await db.collection('users').doc(id).update({ status: status === 'blocked' ? 'blocked' : 'active' }); res.json({ success: true, message: 'تم تحديث الحالة' }); }
     catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
@@ -368,7 +387,6 @@ app.delete('/api/hotspot/:id', authenticateToken, staff, async (req, res) => {
     try { await db.collection('hotspot_devices').doc(req.params.id).delete(); res.json({ success: true, message: 'تم حذف الجهاز' }); }
     catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
-// من التطبيق: الإبلاغ عن الأجهزة المتصلة
 app.post('/api/hotspot/report', authenticateToken, async (req, res) => {
     try {
         if (req.user.role !== 'user') return res.json({ success: false, message: 'غير مصرح' });
