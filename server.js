@@ -1,6 +1,6 @@
 // ============================================
-// B.T.C VPN — الخادم الاحترافي مع Firebase
-// طبقة V2Ray + مولّد إعداد + إدارة كاملة
+// B.T.C VPN — الخادم النهائي المتكامل (Firebase + V2Ray)
+// نسخة مستقرة: فصل الموزّع + فرز داخلي + حماية الملكية
 // ============================================
 const express = require('express');
 const cors = require('cors');
@@ -37,64 +37,30 @@ app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ============================================
-// مولّد إعداد V2Ray (المصدر الوحيد للحقيقة)
-// يبني config.json صالحاً لـ v2fly / v2ray-core
+// أدوات مساعدة
 // ============================================
+function toMillis(t) {
+    if (!t) return 0;
+    if (typeof t.toMillis === 'function') return t.toMillis();
+    const n = new Date(t).getTime();
+    return isNaN(n) ? 0 : n;
+}
 function buildV2Config(s) {
     const engine = (s.engine || 'v2ray');
-    if (engine !== 'v2ray') {
-        return { _engine: engine, _note: 'محرك غير مدعوم في المولّد الحالي — يُعالج في التطبيق' };
-    }
-    const protocol = (s.protocol || 'vmess');
-    const network = (s.network || 'ws');
-    const security = (s.security || 'tls');
-    const address = s.host || '';
-    const port = Number(s.port) || 443;
-    const uuid = s.uuid || '';
-    const sni = s.sni_hostname || s.host || '';
-    const path = s.path || '/';
-    const hostHeader = s.ws_host || sni;
-
-    // streamSettings حسب نوع النقل والأمان
-    const stream = { network: network, security: security === 'tls' ? 'tls' : 'none' };
-    if (security === 'tls') {
-        stream.tlsSettings = { serverName: sni, allowInsecure: !!s.allow_insecure };
-    }
-    if (network === 'ws') {
-        stream.wsSettings = { path: path, headers: hostHeader ? { Host: hostHeader } : {} };
-    } else if (network === 'grpc') {
-        stream.grpcSettings = { serviceName: s.grpc_service || 'TunService', multiMode: false };
-    } else if (network === 'h2') {
-        stream.h2Settings = { path: path, host: hostHeader ? [hostHeader] : [] };
-    } else if (network === 'tcp') {
-        stream.tcpSettings = { header: { type: s.tcp_type || 'none' } };
-    }
-
-    // outbound حسب البروتوكول
+    if (engine !== 'v2ray') return { _engine: engine, _note: 'محرك غير مدعوم في المولّد الحالي' };
+    const protocol = (s.protocol || 'vmess'), network = (s.network || 'ws'), security = (s.security || 'tls');
+    const address = s.host || '', port = Number(s.port) || 443, uuid = s.uuid || '';
+    const sni = s.sni_hostname || s.host || '', path = s.path || '/', hostHeader = s.ws_host || sni;
+    const stream = { network, security: security === 'tls' ? 'tls' : 'none' };
+    if (security === 'tls') stream.tlsSettings = { serverName: sni, allowInsecure: !!s.allow_insecure };
+    if (network === 'ws') stream.wsSettings = { path, headers: hostHeader ? { Host: hostHeader } : {} };
+    else if (network === 'grpc') stream.grpcSettings = { serviceName: s.grpc_service || 'TunService', multiMode: false };
+    else if (network === 'h2') stream.h2Settings = { path, host: hostHeader ? [hostHeader] : [] };
+    else if (network === 'tcp') stream.tcpSettings = { header: { type: s.tcp_type || 'none' } };
     let outbound;
-    if (protocol === 'vmess') {
-        outbound = {
-            protocol: 'vmess',
-            settings: { vnext: [{ address, port, users: [{ id: uuid, alterId: Number(s.alter_id) || 0, security: s.vmess_security || 'auto' }] }] },
-            streamSettings: stream, tag: 'proxy'
-        };
-    } else if (protocol === 'vless') {
-        const user = { id: uuid, encryption: 'none' };
-        if (network === 'tcp' && security === 'tls' && s.flow) user.flow = s.flow; // xtls-rprx-vision
-        outbound = {
-            protocol: 'vless',
-            settings: { vnext: [{ address, port, users: [user] }] },
-            streamSettings: stream, tag: 'proxy'
-        };
-    } else { // trojan
-        outbound = {
-            protocol: 'trojan',
-            settings: { servers: [{ address, port, password: uuid || s.password || '' }] },
-            streamSettings: Object.assign({}, stream, { security: 'tls', tlsSettings: stream.tlsSettings || { serverName: sni } }),
-            tag: 'proxy'
-        };
-    }
-
+    if (protocol === 'vmess') outbound = { protocol: 'vmess', settings: { vnext: [{ address, port, users: [{ id: uuid, alterId: Number(s.alter_id) || 0, security: s.vmess_security || 'auto' }] }] }, streamSettings: stream, tag: 'proxy' };
+    else if (protocol === 'vless') { const u = { id: uuid, encryption: 'none' }; if (network === 'tcp' && security === 'tls' && s.flow) u.flow = s.flow; outbound = { protocol: 'vless', settings: { vnext: [{ address, port, users: [u] }] }, streamSettings: stream, tag: 'proxy' }; }
+    else outbound = { protocol: 'trojan', settings: { servers: [{ address, port, password: uuid || s.password || '' }] }, streamSettings: Object.assign({}, stream, { security: 'tls', tlsSettings: stream.tlsSettings || { serverName: sni } }), tag: 'proxy' };
     return {
         log: { loglevel: s.loglevel || 'warning' },
         dns: { hosts: {}, servers: ['1.1.1.1', '8.8.8.8'] },
@@ -102,18 +68,8 @@ function buildV2Config(s) {
             { port: 10808, protocol: 'socks', listen: '127.0.0.1', settings: { auth: 'noauth', udp: true }, tag: 'socks-in' },
             { port: 10809, protocol: 'http', listen: '127.0.0.1', tag: 'http-in' }
         ],
-        outbounds: [
-            outbound,
-            { protocol: 'freedom', tag: 'direct', settings: { domainStrategy: 'UseIP' } },
-            { protocol: 'blackhole', tag: 'block' }
-        ],
-        routing: {
-            domainStrategy: 'AsIs',
-            rules: [
-                { type: 'field', ip: ['geoip:private'], outboundTag: 'direct' },
-                { type: 'field', domain: ['geosite:private'], outboundTag: 'direct' }
-            ]
-        }
+        outbounds: [outbound, { protocol: 'freedom', tag: 'direct', settings: { domainStrategy: 'UseIP' } }, { protocol: 'blackhole', tag: 'block' }],
+        routing: { domainStrategy: 'AsIs', rules: [{ type: 'field', ip: ['geoip:private'], outboundTag: 'direct' }, { type: 'field', domain: ['geosite:private'], outboundTag: 'direct' }] }
     };
 }
 
@@ -225,43 +181,36 @@ app.get('/api/me', authenticateToken, async (req, res) => {
 });
 
 // ============================================
-// الإحصائيات
+// الإحصائيات (مفصولة: الموزّع يرى نفسه فقط)
 // ============================================
-app.get('/api/accounts', authenticateToken, staff, async (req, res) => {
+app.get('/api/stats', authenticateToken, staff, async (req, res) => {
     try {
-        let snap;
-        if (req.user.role === 'reseller') {
-            // للموزّع: فلترة فقط، بلا ترتيب (يتجنّب الفهرس المركّب)
-            snap = await db.collection('accounts').where('reseller_id', '==', req.user.id).get();
-        } else {
-            // للمدير: ترتيب فقط، بلا فلترة (لا يحتاج فهرسًا مركّبًا)
-            snap = await db.collection('accounts').orderBy('created_at', 'desc').limit(300).get();
-        }
-        const accounts = [];
-        for (const d of snap.docs) { const a = d.data(); const pd = await db.collection('plans').doc(a.plan_id).get(); accounts.push({ id: d.id, ...a, plan_name: pd.exists ? pd.data().name_ar : '—' }); }
-        // نرتّب هنا في الكود (الأحدث أولًا) — يعمل للجميع بلا فهرس مركّب
-        accounts.sort((x, y) => {
-            const tx = x.created_at && x.created_at.toMillis ? x.created_at.toMillis() : new Date(x.created_at || 0).getTime();
-            const ty = y.created_at && y.created_at.toMillis ? y.created_at.toMillis() : new Date(y.created_at || 0).getTime();
-            return ty - tx;
-        });
-        res.json({ success: true, accounts });
+        const snap = req.user.role === 'reseller'
+            ? await db.collection('accounts').where('reseller_id', '==', req.user.id).get()
+            : await db.collection('accounts').get();
+        let total = 0, active = 0, expired = 0, frozen = 0; const now = new Date();
+        snap.forEach(d => { const a = d.data(); total++; if (a.status === 'frozen') frozen++; else if (new Date(a.expiry_date) > now && a.status === 'active') active++; else expired++; });
+        const u = (await db.collection('users').doc(req.user.id).get()).data();
+        res.json({ success: true, stats: { total_accounts: total, active_accounts: active, expired_accounts: expired, frozen_accounts: frozen, available_credits: u.credits || 0 } });
     } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
 
 // ============================================
-// الحسابات
+// الحسابات (مفصولة + فرز داخلي آمن)
 // ============================================
 app.get('/api/accounts', authenticateToken, staff, async (req, res) => {
     try {
-                let q = db.collection('accounts');
-        if (req.user.role === 'reseller') q = q.where('reseller_id', '==', req.user.id);
-        const snap = await q.orderBy('created_at', 'desc').limit(300).get();
-        const accounts = [];
+        const snap = req.user.role === 'reseller'
+            ? await db.collection('accounts').where('reseller_id', '==', req.user.id).get()
+            : await db.collection('accounts').get();
+        let accounts = [];
         for (const d of snap.docs) { const a = d.data(); const pd = await db.collection('plans').doc(a.plan_id).get(); accounts.push({ id: d.id, ...a, plan_name: pd.exists ? pd.data().name_ar : '—' }); }
+        accounts.sort((x, y) => toMillis(y.created_at) - toMillis(x.created_at));
+        if (req.user.role !== 'reseller') accounts = accounts.slice(0, 300);
         res.json({ success: true, accounts });
     } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
+
 app.post('/api/account/create', authenticateToken, staff, async (req, res) => {
     try {
         const { username, password, plan_id, is_random } = req.body;
@@ -279,6 +228,8 @@ app.post('/api/account/create', authenticateToken, staff, async (req, res) => {
         res.json({ success: true, message: 'تم الإصدار', data: { username: finalUsername, password: finalPassword, plan: plan.name_ar, duration_days: plan.duration_days, expiry_date, referral_code: '' } });
     } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
+
+// تعديل حساب — محمي: الموزّع لا يمسّ إلا حساباته
 app.post('/api/accounts/update', authenticateToken, staff, async (req, res) => {
     try {
         const { id, status, frozen_reason, add_days, new_password, plan_id, allow_hotspot, max_hotspot_devices } = req.body;
@@ -286,7 +237,7 @@ app.post('/api/accounts/update', authenticateToken, staff, async (req, res) => {
         const ref = db.collection('accounts').doc(id);
         const cur = await ref.get();
         if (!cur.exists) return res.json({ success: false, message: 'الحساب غير موجود' });
-                const a = cur.data();
+        const a = cur.data();
         if (req.user.role === 'reseller' && a.reseller_id !== req.user.id) return res.json({ success: false, message: 'هذا الحساب لا يخصّك' });
         const upd = {}; const notes = [];
         if (status && ['active', 'frozen', 'blocked', 'expired'].includes(status)) { upd.status = status; notes.push('الحالة ← ' + status); if (status === 'frozen') upd.frozen_reason = frozen_reason || 'مجمّد من الإدارة'; if (status === 'active') upd.frozen_reason = TS.delete(); }
@@ -330,8 +281,6 @@ app.get('/api/servers', authenticateToken, async (req, res) => {
     try { const snap = await db.collection('servers').get(); res.json({ success: true, servers: snap.docs.map(d => ({ id: d.id, ...d.data() })) }); }
     catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
-
-// توليد الإعداد المحفوظ — متاح لكل دور مصدَّق (التطبيق يحتاجه)
 app.get('/api/servers/:id/v2config', authenticateToken, async (req, res) => {
     try {
         const doc = await db.collection('servers').doc(req.params.id).get();
@@ -342,32 +291,18 @@ app.get('/api/servers/:id/v2config', authenticateToken, async (req, res) => {
         res.json({ success: true, engine: s.engine || 'v2ray', config, configString: JSON.stringify(config) });
     } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
-
 app.post('/api/servers/save', authenticateToken, onlyAdmin, async (req, res) => {
     try {
         const b = req.body;
         if (!b.display_name || !b.host || !b.sni_hostname) return res.json({ success: false, message: 'الاسم والمضيف و SNI مطلوبة' });
         const data = {
-            display_name: String(b.display_name).trim(),
-            company_name: String(b.company_name || 'عام').trim(),
-            engine: String(b.engine || 'v2ray'),
-            protocol: String(b.protocol || 'vmess'),
-            uuid: String(b.uuid || '').trim(),
-            network: String(b.network || 'ws'),
-            security: String(b.security || 'tls'),
-            host: String(b.host).trim(),
-            port: Number(b.port) || 443,
-            sni_hostname: String(b.sni_hostname).trim(),
-            path: String(b.path || '/'),
-            ws_host: String(b.ws_host || ''),
-            grpc_service: String(b.grpc_service || 'TunService'),
-            tcp_type: String(b.tcp_type || 'none'),
-            alter_id: Number(b.alter_id) || 0,
-            vmess_security: String(b.vmess_security || 'auto'),
-            flow: String(b.flow || ''),
-            allow_insecure: b.allow_insecure ? 1 : 0,
-            is_gaming: b.is_gaming ? 1 : 0,
-            ping_ms: Number(b.ping_ms) || 50,
+            display_name: String(b.display_name).trim(), company_name: String(b.company_name || 'عام').trim(),
+            engine: String(b.engine || 'v2ray'), protocol: String(b.protocol || 'vmess'), uuid: String(b.uuid || '').trim(),
+            network: String(b.network || 'ws'), security: String(b.security || 'tls'), host: String(b.host).trim(),
+            port: Number(b.port) || 443, sni_hostname: String(b.sni_hostname).trim(), path: String(b.path || '/'),
+            ws_host: String(b.ws_host || ''), grpc_service: String(b.grpc_service || 'TunService'), tcp_type: String(b.tcp_type || 'none'),
+            alter_id: Number(b.alter_id) || 0, vmess_security: String(b.vmess_security || 'auto'), flow: String(b.flow || ''),
+            allow_insecure: b.allow_insecure ? 1 : 0, is_gaming: b.is_gaming ? 1 : 0, ping_ms: Number(b.ping_ms) || 50,
             is_active: (b.is_active === 0 || b.is_active === false) ? 0 : 1
         };
         if (b.id) await db.collection('servers').doc(b.id).set(data, { merge: true }); else await db.collection('servers').add(data);
@@ -429,22 +364,16 @@ app.delete('/api/users/:id', authenticateToken, onlyAdmin, async (req, res) => {
 });
 
 // ============================================
-// Hotspot
+// Hotspot (محمي + فرز داخلي)
 // ============================================
 app.get('/api/hotspot/:accountId', authenticateToken, staff, async (req, res) => {
-            try {
+    try {
         if (req.user.role === 'reseller') { const acc = await db.collection('accounts').doc(req.params.accountId).get(); if (!acc.exists || acc.data().reseller_id !== req.user.id) return res.json({ success: false, message: 'هذا الحساب لا يخصّك' }); }
-        // فلترة فقط، والفرز في الكود (يتجنّب الفهرس المركّب)
         const snap = await db.collection('hotspot_devices').where('account_id', '==', req.params.accountId).limit(50).get();
         const devices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        devices.sort((x, y) => {
-            const tx = x.last_seen && x.last_seen.toMillis ? x.last_seen.toMillis() : 0;
-            const ty = y.last_seen && y.last_seen.toMillis ? y.last_seen.toMillis() : 0;
-            return ty - tx;
-        });
+        devices.sort((x, y) => toMillis(y.last_seen) - toMillis(x.last_seen));
         res.json({ success: true, devices });
-    }
-    catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
+    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
 app.post('/api/hotspot/link', authenticateToken, staff, async (req, res) => {
     try {
