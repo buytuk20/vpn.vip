@@ -229,7 +229,9 @@ app.get('/api/me', authenticateToken, async (req, res) => {
 // ============================================
 app.get('/api/stats', authenticateToken, staff, async (req, res) => {
     try {
-        const snap = await db.collection('accounts').get();
+                let q = db.collection('accounts');
+        if (req.user.role === 'reseller') q = q.where('reseller_id', '==', req.user.id);
+        const snap = await q.get();
         let total = 0, active = 0, expired = 0, frozen = 0; const now = new Date();
         snap.forEach(d => { const a = d.data(); total++; if (a.status === 'frozen') frozen++; else if (new Date(a.expiry_date) > now && a.status === 'active') active++; else expired++; });
         const u = (await db.collection('users').doc(req.user.id).get()).data();
@@ -242,7 +244,9 @@ app.get('/api/stats', authenticateToken, staff, async (req, res) => {
 // ============================================
 app.get('/api/accounts', authenticateToken, staff, async (req, res) => {
     try {
-        const snap = await db.collection('accounts').orderBy('created_at', 'desc').limit(300).get();
+                let q = db.collection('accounts');
+        if (req.user.role === 'reseller') q = q.where('reseller_id', '==', req.user.id);
+        const snap = await q.orderBy('created_at', 'desc').limit(300).get();
         const accounts = [];
         for (const d of snap.docs) { const a = d.data(); const pd = await db.collection('plans').doc(a.plan_id).get(); accounts.push({ id: d.id, ...a, plan_name: pd.exists ? pd.data().name_ar : '—' }); }
         res.json({ success: true, accounts });
@@ -272,7 +276,9 @@ app.post('/api/accounts/update', authenticateToken, staff, async (req, res) => {
         const ref = db.collection('accounts').doc(id);
         const cur = await ref.get();
         if (!cur.exists) return res.json({ success: false, message: 'الحساب غير موجود' });
-        const a = cur.data(); const upd = {}; const notes = [];
+                const a = cur.data();
+        if (req.user.role === 'reseller' && a.reseller_id !== req.user.id) return res.json({ success: false, message: 'هذا الحساب لا يخصّك' });
+        const upd = {}; const notes = [];
         if (status && ['active', 'frozen', 'blocked', 'expired'].includes(status)) { upd.status = status; notes.push('الحالة ← ' + status); if (status === 'frozen') upd.frozen_reason = frozen_reason || 'مجمّد من الإدارة'; if (status === 'active') upd.frozen_reason = TS.delete(); }
         if (Number(add_days) > 0) { const base = Math.max(Date.now(), new Date(a.expiry_date).getTime()); upd.expiry_date = new Date(base + Number(add_days) * 86400000).toISOString(); if (a.status === 'expired') upd.status = 'active'; notes.push('تمديد +' + add_days + ' يوم'); }
         if (new_password) { upd.password = bcrypt.hashSync(String(new_password), 10); notes.push('إعادة ضبط كلمة السر'); }
@@ -416,7 +422,11 @@ app.delete('/api/users/:id', authenticateToken, onlyAdmin, async (req, res) => {
 // Hotspot
 // ============================================
 app.get('/api/hotspot/:accountId', authenticateToken, staff, async (req, res) => {
-    try { const snap = await db.collection('hotspot_devices').where('account_id', '==', req.params.accountId).orderBy('last_seen', 'desc').limit(50).get(); res.json({ success: true, devices: snap.docs.map(d => ({ id: d.id, ...d.data() })) }); }
+        try {
+        if (req.user.role === 'reseller') { const acc = await db.collection('accounts').doc(req.params.accountId).get(); if (!acc.exists || acc.data().reseller_id !== req.user.id) return res.json({ success: false, message: 'هذا الحساب لا يخصّك' }); }
+        const snap = await db.collection('hotspot_devices').where('account_id', '==', req.params.accountId).orderBy('last_seen', 'desc').limit(50).get();
+        res.json({ success: true, devices: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+    }
     catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
 app.post('/api/hotspot/link', authenticateToken, staff, async (req, res) => {
