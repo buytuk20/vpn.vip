@@ -93,6 +93,13 @@ body.is-admin .nav a.admin-only{display:flex}
 .card.big .bars{display:flex;gap:5px;align-items:flex-end;height:46px;margin-top:18px}
 .card.big .bars i{flex:1;border-radius:4px 4px 0 0;background:linear-gradient(180deg,var(--gold-b),var(--gold-d));opacity:.85;animation:grow .9s ease both}
 @keyframes grow{from{height:0!important}}
+.self-topup{margin-top:16px;align-self:flex-start;display:inline-flex;align-items:center;gap:8px;padding:10px 17px;border-radius:12px;border:1px solid var(--line);background:color-mix(in srgb,var(--gold) 12%,transparent);color:var(--gold-b);font-family:'Cairo';font-weight:800;font-size:13px;cursor:pointer;transition:.25s;position:relative;overflow:hidden}
+.self-topup:hover{background:color-mix(in srgb,var(--gold) 22%,transparent);transform:translateY(-2px);box-shadow:0 10px 22px -12px color-mix(in srgb,var(--gold) 70%,transparent)}
+.self-topup::before{content:"";position:absolute;inset:0;background:radial-gradient(circle at 28% 50%,color-mix(in srgb,var(--gold-b) 42%,transparent),transparent 62%);opacity:0;transition:.3s}
+.self-topup:hover::before{opacity:1}
+.self-topup .plus{position:relative;z-index:1;display:inline-grid;place-items:center;width:19px;height:19px;border-radius:6px;background:var(--gold);color:var(--on-gold);font-size:14px;line-height:1;animation:popplus 2.4s ease-in-out infinite}
+.self-topup span.lbl{position:relative;z-index:1}
+@keyframes popplus{0%,100%{transform:scale(1)}50%{transform:scale(1.2)}}
 .panel{border-radius:var(--r2);border:1px solid var(--line2);background:linear-gradient(160deg,var(--surf),var(--bg2));overflow:hidden;transition:background .4s}
 .panel.admin-only{display:none}
 body.is-admin .panel.admin-only{display:block}
@@ -134,7 +141,7 @@ body.is-admin .panel.admin-only{display:block}
 .btn.green{background:color-mix(in srgb,var(--green) 12%,transparent);color:var(--green);box-shadow:none;border:1px solid color-mix(in srgb,var(--green) 30%,transparent)}
 .btn.green:hover{background:color-mix(in srgb,var(--green) 22%,transparent)}
 .tbl-wrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;min-width:640px}
+table{width:100%;border-collapse:collapse;min-width:720px}
 thead th{font-size:11.5px;letter-spacing:1px;text-transform:uppercase;color:var(--mut);font-weight:600;text-align:start;padding:14px 24px;background:var(--bg2)}
 tbody td{padding:14px 24px;border-top:1px solid var(--line2);font-size:14px;vertical-align:middle}
 tbody tr{transition:background .2s}
@@ -272,7 +279,16 @@ tbody tr:hover{background:var(--surf2)}
 
     <div class="content">
       <section class="bento reveal" id="sec-stats">
-        <div class="card big"><div class="glow" style="background:var(--gold)"></div><div><div class="lab">الرصيد المتاح للإصدار</div><div class="num" id="sCredits">0</div><div class="sub">وحدة رصيد • قابلة للتحويل بين الموزّعين</div></div><div class="bars" id="bars"></div></div>
+        <div class="card big">
+          <div class="glow" style="background:var(--gold)"></div>
+          <div>
+            <div class="lab">الرصيد المتاح للإصدار</div>
+            <div class="num" id="sCredits">0</div>
+            <div class="sub">وحدة رصيد • قابلة للتحويل بين الموزّعين</div>
+            <button class="self-topup" id="selfTopupBtn" style="display:none" onclick="selfCreditForm()"><span class="plus">＋</span><span class="lbl">شحن رصيدي</span></button>
+          </div>
+          <div class="bars" id="bars"></div>
+        </div>
         <div class="card"><div class="glow" style="background:var(--blue)"></div><div class="lab">إجمالي الحسابات</div><div class="num" id="sTotal">0</div><div class="ic2">👥</div></div>
         <div class="card"><div class="glow" style="background:var(--green)"></div><div class="lab">نشطة الآن</div><div class="num" id="sActive" style="color:var(--green)">0</div><div class="ic2">⚡</div></div>
         <div class="card"><div class="glow" style="background:var(--gold)"></div><div class="lab">مجمّدة</div><div class="num" id="sFrozen" style="color:var(--gold-b)">0</div><div class="ic2">🔒</div></div>
@@ -280,7 +296,7 @@ tbody tr:hover{background:var(--surf2)}
       </section>
 
       <section class="panel reveal" id="sec-create">
-        <div class="panel-h"><h3 class="disp"><span class="tag"></span>إصدار حساب جديد</h3><span class="hint">تُخصم قيمة الباقة من رصيدك</span></div>
+        <div class="panel-h"><h3 class="disp"><span class="tag"></span>إصدار حساب جديد</h3><span class="hint">تُخصم قيمة الباقة (التكلفة) من رصيدك</span></div>
         <div class="panel-b">
           <div class="form">
             <div class="field"><label>اسم المستخدم</label><input class="inp" id="accUser" placeholder="اتركه فارغاً للتوليد العشوائي"></div>
@@ -303,8 +319,8 @@ tbody tr:hover{background:var(--surf2)}
       </section>
 
       <section class="panel admin-only reveal" id="sec-plans">
-        <div class="panel-h"><h3 class="disp"><span class="tag"></span>إدارة الباقات</h3><button class="btn sm" onclick="planForm()">+ باقة جديدة</button></div>
-        <div class="tbl-wrap"><table><thead><tr><th>الباقة</th><th>المدة</th><th>البيانات</th><th>السعر</th><th>النوع</th><th>إجراءات</th></tr></thead><tbody id="plansBody"></tbody></table><div class="empty" id="emptyPlans" style="display:none"><div class="e-ic">📦</div><p>لا توجد باقات</p></div></div>
+        <div class="panel-h"><h3 class="disp"><span class="tag"></span>إدارة الباقات</h3><span class="hint">التكلفة = ما يُخصم من الموزّع • البيع = سعر التجزئة المقترح</span><button class="btn sm" onclick="planForm()">+ باقة جديدة</button></div>
+        <div class="tbl-wrap"><table><thead><tr><th>الباقة</th><th>المدة</th><th>البيانات</th><th>التكلفة</th><th>البيع</th><th>النوع</th><th>إجراءات</th></tr></thead><tbody id="plansBody"></tbody></table><div class="empty" id="emptyPlans" style="display:none"><div class="e-ic">📦</div><p>لا توجد باقات</p></div></div>
       </section>
 
       <section class="panel admin-only reveal" id="sec-servers">
@@ -363,8 +379,9 @@ function collectFields(fields){ const out={}; fields.forEach(f=>{ const el=docum
 function openForm(opts){
   const {title, sub, icon='edit', fields, submitLabel='حفظ', onSubmit} = opts;
   const grid = fields.some(f=>f.full) ? 'form' : '';
+  const sym = icon==='warn'?'!':icon==='gold'?'＋':icon==='ok'?'✓':'✎';
   document.getElementById('dynModal').innerHTML = `
-    <div class="modal-h"><div class="chk ${icon}">${icon==='warn'?'!':'✎'}</div><div><h4 class="disp">${title}</h4><p>${sub||''}</p></div></div>
+    <div class="modal-h"><div class="chk ${icon}">${sym}</div><div><h4 class="disp">${title}</h4><p>${sub||''}</p></div></div>
     <div class="modal-b"><div class="${grid}">${fields.map(buildField).join('')}</div></div>
     <div class="modal-f"><button class="btn" id="dynSave">${submitLabel}</button><button class="btn ghost" onclick="hide('dynBackdrop')">إلغاء</button></div>`;
   document.getElementById('dynBackdrop').classList.add('show');
@@ -412,6 +429,7 @@ function enter(){
   document.getElementById('loginScreen').style.display='none';
   document.getElementById('app').style.display='grid';
   if(me.role==='admin') document.body.classList.add('is-admin');
+  const stb=document.getElementById('selfTopupBtn'); if(stb) stb.style.display = me.role==='admin' ? 'inline-flex' : 'none';
   const name=me.username, role=me.role==='admin'?'مدير النظام':'موزّع';
   document.getElementById('meName').textContent=name; document.getElementById('meRole').textContent=role;
   document.getElementById('meAv').textContent=name.charAt(0).toUpperCase();
@@ -426,10 +444,26 @@ function buildBars(){ const c=document.getElementById('bars'); c.innerHTML=''; f
 async function loadStats(){ try{ const d=await api('/api/stats'); if(d.success){ animate(document.getElementById('sCredits'),d.stats.available_credits||0); animate(document.getElementById('sTotal'),d.stats.total_accounts||0); animate(document.getElementById('sActive'),d.stats.active_accounts||0); animate(document.getElementById('sFrozen'),d.stats.frozen_accounts||0); animate(document.getElementById('sExpired'),d.stats.expired_accounts||0); } }catch(e){} }
 
 /* ===== Plans ===== */
-async function loadPlans(){ try{ const d=await api('/api/plans'); if(!d.success)return; plansCache=d.plans||[]; const sel=document.getElementById('accPlan'); sel.innerHTML=plansCache.length?plansCache.map(p=>`<option value="${p.id}">${p.is_gaming?'🎮 ':''}${p.name_ar} — ${p.duration_days} يوم (${p.price} رصيد)</option>`).join(''):'<option value="">لا توجد باقات — أضف واحدة من الإدارة</option>'; if(me&&me.role==='admin')renderPlans(); }catch(e){} }
-function renderPlans(){ const body=document.getElementById('plansBody'),empty=document.getElementById('emptyPlans'); body.innerHTML=''; if(!plansCache.length){empty.style.display='block';return;} empty.style.display='none'; plansCache.forEach(p=>{ body.innerHTML+=`<tr><td class="u-name">${p.name_ar}</td><td class="mono" style="color:var(--mut)">${p.duration_days} يوم</td><td class="mono" style="color:var(--mut)">${(p.data_limit_mb>=999999?'∞':p.data_limit_mb+' MB')}</td><td style="color:var(--gold-b);font-weight:700">${p.price}</td><td><span class="badge ${p.is_gaming?'blue':'gold'}"><span class="d"></span>${p.is_gaming?'جيمنج':'عادي'}</span></td><td><div class="row-act"><button class="btn blue sm" onclick='planForm(${JSON.stringify(p)})'>تعديل</button><button class="btn danger sm" onclick="delPlan('${p.id}','${p.name_ar}')">حذف</button></div></td></tr>`; }); }
-function planForm(p){ openForm({ title:p?'تعديل باقة':'باقة جديدة', sub:'تظهر فوراً في قائمة الإصدار', icon:'edit', submitLabel:'حفظ الباقة', fields:[ {key:'name_ar',label:'اسم الباقة',value:p?.name_ar||'',placeholder:'مثال: شهري VIP'}, {key:'price',label:'السعر بالرصيد',type:'number',value:p?.price??0}, {key:'duration_days',label:'المدة بالأيام',type:'number',value:p?.duration_days??30}, {key:'data_limit_mb',label:'حد البيانات (MB)',type:'number',value:p?.data_limit_mb??5000,placeholder:'999999 = غير محدود'}, {key:'is_gaming',label:'باقة جيمنج (بينج منخفض)',type:'checkbox',value:!!p?.is_gaming,full:true} ], onSubmit:async v=>{ const d=await api('/api/plans/save',Object.assign({id:p?.id},v)); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadPlans();}else toast('err','تعذّر الحفظ',d.message); } }); }
+async function loadPlans(){ try{ const d=await api('/api/plans'); if(!d.success)return; plansCache=d.plans||[]; const sel=document.getElementById('accPlan'); sel.innerHTML=plansCache.length?plansCache.map(p=>`<option value="${p.id}">${p.is_gaming?'🎮 ':''}${p.name_ar} — ${p.duration_days} يوم (تكلفة ${p.price}${p.retail_price?(' / بيع '+p.retail_price):''})</option>`).join(''):'<option value="">لا توجد باقات — أضف واحدة من الإدارة</option>'; if(me&&me.role==='admin')renderPlans(); }catch(e){} }
+function renderPlans(){ const body=document.getElementById('plansBody'),empty=document.getElementById('emptyPlans'); body.innerHTML=''; if(!plansCache.length){empty.style.display='block';return;} empty.style.display='none'; plansCache.forEach(p=>{ const retail=p.retail_price||p.price; const margin=(retail-p.price); body.innerHTML+=`<tr><td class="u-name">${p.name_ar}</td><td class="mono" style="color:var(--mut)">${p.duration_days} يوم</td><td class="mono" style="color:var(--mut)">${(p.data_limit_mb>=999999?'∞':p.data_limit_mb+' MB')}</td><td style="color:var(--gold-b);font-weight:700">${p.price}</td><td style="color:var(--green);font-weight:700">${retail}${margin>0?` <span style="color:var(--mut);font-weight:600;font-size:11px">(+${margin})</span>`:''}</td><td><span class="badge ${p.is_gaming?'blue':'gold'}"><span class="d"></span>${p.is_gaming?'جيمنج':'عادي'}</span></td><td><div class="row-act"><button class="btn blue sm" onclick='planForm(${JSON.stringify(p)})'>تعديل</button><button class="btn danger sm" onclick="delPlan('${p.id}','${p.name_ar}')">حذف</button></div></td></tr>`; }); }
+function planForm(p){ openForm({ title:p?'تعديل باقة':'باقة جديدة', sub:'التكلفة تُخصم من الموزّع عند الإصدار • البيع سعر التجزئة المقترح', icon:'edit', submitLabel:'حفظ الباقة', fields:[ {key:'name_ar',label:'اسم الباقة',value:p?.name_ar||'',placeholder:'مثال: شهري VIP'}, {key:'price',label:'سعر التكلفة (بالرصيد)',type:'number',value:p?.price??0,placeholder:'ما يُخصم من الموزّع'}, {key:'retail_price',label:'سعر البيع المقترح (للمستخدم النهائي)',type:'number',value:p?.retail_price??p?.price??0,placeholder:'اتركه = التكلفة إن لم ترد هامشاً'}, {key:'duration_days',label:'المدة بالأيام',type:'number',value:p?.duration_days??30}, {key:'data_limit_mb',label:'حد البيانات (MB)',type:'number',value:p?.data_limit_mb??5000,placeholder:'999999 = غير محدود'}, {key:'is_gaming',label:'باقة جيمنج (بينج منخفض)',type:'checkbox',value:!!p?.is_gaming,full:true} ], onSubmit:async v=>{ const d=await api('/api/plans/save',Object.assign({id:p?.id},v)); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadPlans();}else toast('err','تعذّر الحفظ',d.message); } }); }
 function delPlan(id,name){ confirmAction('حذف الباقة',`سيتم حذف «${name}» نهائياً. الحسابات القديمة لن تتأثر.`, async()=>{ const d=await apiDel('/api/plans/'+id); if(d.success){toast('ok',d.message);loadPlans();}else toast('err','فشل الحذف',d.message); }); }
+
+/* ===== Self credit (admin only) ===== */
+function selfCreditForm(){
+  openForm({ title:'شحن رصيدك', sub:'أنت المدير — الرصيد يُضاف مباشرة إلى حسابك (المنبع)', icon:'gold', submitLabel:'إضافة الرصيد',
+    fields:[
+      {key:'amount', label:'المقدار المراد إضافته', type:'number', value:1000, placeholder:'مثال: 5000'},
+      {key:'note', label:'ملاحظة (اختياري)', placeholder:'سبب الشحن / مرجع داخلي'}
+    ],
+    onSubmit: async v=>{
+      if(!v.amount || v.amount<1){ toast('err','قيمة غير صالحة','أدخل مقداراً موجباً'); return; }
+      const d=await api('/api/users/self-credit',{amount:v.amount, note:v.note});
+      if(d.success){ toast('ok', d.message, 'رصيدك الجديد: '+(d.data?.credits!=null?Number(d.data.credits).toLocaleString('en'):'—')); hide('dynBackdrop'); loadStats(); }
+      else toast('err','فشل الشحن', d.message);
+    }
+  });
+}
 
 /* ===== Create account ===== */
 async function createAccount(){ const u=document.getElementById('accUser').value.trim(),p=document.getElementById('accPass').value.trim(),plan_id=document.getElementById('accPlan').value,is_random=document.getElementById('isRandom').checked,b=document.getElementById('createBtn'); if(!plan_id){toast('err','اختر باقة','لا توجد باقة محدّدة');return;} b.disabled=true; b.innerHTML='<span class="spin"></span>جارٍ الإصدار…'; try{ const d=await api('/api/account/create',{username:u||null,password:p||null,plan_id,is_random}); b.disabled=false; b.textContent='إصدار الحساب'; if(d.success){openResult(d.data);toast('ok','تم الإصدار','الحساب '+d.data.username+' جاهز');loadStats();loadAccounts();resetForm();}else toast('err','تعذّر الإصدار',d.message); }catch(e){ b.disabled=false; b.textContent='إصدار الحساب'; toast('err','خطأ في الاتصال','لم نصل للخادم'); } }
@@ -530,7 +564,7 @@ async function delDevice(devId){ confirmAction('حذف الجهاز','سيُزا
 /* ===== Users ===== */
 async function loadUsers(){ try{ const d=await api('/api/users'); const body=document.getElementById('usersBody'),empty=document.getElementById('emptyUsers'); body.innerHTML=''; const list=d.users||[]; if(!list.length){empty.style.display='block';return;} empty.style.display='none'; list.forEach(u=>{ const blocked=u.status==='blocked'; body.innerHTML+=`<tr><td class="u-name">${u.username}</td><td><span class="badge ${u.role==='admin'?'gold':'blue'}"><span class="d"></span>${u.role==='admin'?'مدير':'موزّع'}</span></td><td style="color:var(--gold-b);font-weight:700">${(u.credits||0).toLocaleString('en')}</td><td><span class="badge ${blocked?'no':'ok'}"><span class="d"></span>${blocked?'موقوف':'نشط'}</span></td><td><div class="row-act"><button class="btn sm" onclick="creditForm('${u.id}','${u.username}',${u.credits||0})">رصيد</button>${u.role!=='admin'?`<button class="btn blue sm" onclick="toggleUser('${u.id}',${blocked?0:1})">${blocked?'تفعيل':'إيقاف'}</button><button class="btn danger sm" onclick="delUser('${u.id}','${u.username}')">حذف</button>`:''}</div></td></tr>`; }); }catch(e){ toast('err','تعذّر التحميل','فشل جلب الموزّعين'); } }
 function userForm(){ openForm({ title:'موزّع جديد', sub:'سيظهر فوراً ويمكنه إصدار حسابات', icon:'edit', submitLabel:'إنشاء الموزّع', fields:[ {key:'username',label:'اسم المستخدم',placeholder:'مثال: reseller2'}, {key:'password',label:'كلمة المرور',placeholder:'كلمة مرور قوية'}, {key:'credits',label:'الرصيد الابتدائي',type:'number',value:0}, {key:'role',label:'الدور',type:'select',value:'reseller',options:[{v:'reseller',label:'موزّع'},{v:'admin',label:'مدير'}]} ], onSubmit:async v=>{ const d=await api('/api/users/create',v); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadUsers();}else toast('err','تعذّر الإنشاء',d.message); } }); }
-function creditForm(id,name,cur){ openForm({ title:'شحن رصيد', sub:`الموزّع: ${name} • الرصيد الحالي: ${cur}`, icon:'edit', submitLabel:'تطبيق', fields:[ {key:'amount',label:'المقدار',type:'number',value:100}, {key:'mode',label:'العملية',type:'select',value:'add',options:[{v:'add',label:'إضافة إلى الرصيد'},{v:'set',label:'ضبط الرصيد على قيمة معيّنة'}]} ], onSubmit:async v=>{ const d=await api('/api/users/credit',Object.assign({id},v)); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadUsers();loadStats();}else toast('err','فشل التحديث',d.message); } }); }
+function creditForm(id,name,cur){ openForm({ title:'شحن رصيد موزّع', sub:`الموزّع: ${name} • الرصيد الحالي: ${cur}`, icon:'edit', submitLabel:'تطبيق', fields:[ {key:'amount',label:'المقدار',type:'number',value:100}, {key:'mode',label:'العملية',type:'select',value:'add',options:[{v:'add',label:'إضافة إلى الرصيد'},{v:'set',label:'ضبط الرصيد على قيمة معيّنة'}]} ], onSubmit:async v=>{ const d=await api('/api/users/credit',Object.assign({id},v)); if(d.success){toast('ok',d.message);hide('dynBackdrop');loadUsers();loadStats();}else toast('err','فشل التحديث',d.message); } }); }
 function toggleUser(id,block){ const act=block?'إيقاف':'تفعيل'; confirmAction(act+' الموزّع',`سيتم ${act} هذا الموزّع ومنعه من الدخول عند الإيقاف.`, async()=>{ const d=await api('/api/users/toggle',{id,status:block?'blocked':'active'}); if(d.success){toast('ok',d.message);loadUsers();}else toast('err','فشل',d.message); }); }
 function delUser(id,name){ confirmAction('حذف الموزّع',`سيتم حذف «${name}» نهائياً (لن تُحذف حساباته السابقة).`, async()=>{ const d=await apiDel('/api/users/'+id); if(d.success){toast('ok',d.message);loadUsers();}else toast('err','فشل الحذف',d.message); }); }
 
