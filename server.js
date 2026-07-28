@@ -227,15 +227,25 @@ app.get('/api/me', authenticateToken, async (req, res) => {
 // ============================================
 // الإحصائيات
 // ============================================
-app.get('/api/stats', authenticateToken, staff, async (req, res) => {
+app.get('/api/accounts', authenticateToken, staff, async (req, res) => {
     try {
-                let q = db.collection('accounts');
-        if (req.user.role === 'reseller') q = q.where('reseller_id', '==', req.user.id);
-        const snap = await q.get();
-        let total = 0, active = 0, expired = 0, frozen = 0; const now = new Date();
-        snap.forEach(d => { const a = d.data(); total++; if (a.status === 'frozen') frozen++; else if (new Date(a.expiry_date) > now && a.status === 'active') active++; else expired++; });
-        const u = (await db.collection('users').doc(req.user.id).get()).data();
-        res.json({ success: true, stats: { total_accounts: total, active_accounts: active, expired_accounts: expired, frozen_accounts: frozen, available_credits: u.credits || 0 } });
+        let snap;
+        if (req.user.role === 'reseller') {
+            // للموزّع: فلترة فقط، بلا ترتيب (يتجنّب الفهرس المركّب)
+            snap = await db.collection('accounts').where('reseller_id', '==', req.user.id).get();
+        } else {
+            // للمدير: ترتيب فقط، بلا فلترة (لا يحتاج فهرسًا مركّبًا)
+            snap = await db.collection('accounts').orderBy('created_at', 'desc').limit(300).get();
+        }
+        const accounts = [];
+        for (const d of snap.docs) { const a = d.data(); const pd = await db.collection('plans').doc(a.plan_id).get(); accounts.push({ id: d.id, ...a, plan_name: pd.exists ? pd.data().name_ar : '—' }); }
+        // نرتّب هنا في الكود (الأحدث أولًا) — يعمل للجميع بلا فهرس مركّب
+        accounts.sort((x, y) => {
+            const tx = x.created_at && x.created_at.toMillis ? x.created_at.toMillis() : new Date(x.created_at || 0).getTime();
+            const ty = y.created_at && y.created_at.toMillis ? y.created_at.toMillis() : new Date(y.created_at || 0).getTime();
+            return ty - tx;
+        });
+        res.json({ success: true, accounts });
     } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
 
@@ -422,10 +432,17 @@ app.delete('/api/users/:id', authenticateToken, onlyAdmin, async (req, res) => {
 // Hotspot
 // ============================================
 app.get('/api/hotspot/:accountId', authenticateToken, staff, async (req, res) => {
-        try {
+            try {
         if (req.user.role === 'reseller') { const acc = await db.collection('accounts').doc(req.params.accountId).get(); if (!acc.exists || acc.data().reseller_id !== req.user.id) return res.json({ success: false, message: 'هذا الحساب لا يخصّك' }); }
-        const snap = await db.collection('hotspot_devices').where('account_id', '==', req.params.accountId).orderBy('last_seen', 'desc').limit(50).get();
-        res.json({ success: true, devices: snap.docs.map(d => ({ id: d.id, ...d.data() })) });
+        // فلترة فقط، والفرز في الكود (يتجنّب الفهرس المركّب)
+        const snap = await db.collection('hotspot_devices').where('account_id', '==', req.params.accountId).limit(50).get();
+        const devices = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        devices.sort((x, y) => {
+            const tx = x.last_seen && x.last_seen.toMillis ? x.last_seen.toMillis() : 0;
+            const ty = y.last_seen && y.last_seen.toMillis ? y.last_seen.toMillis() : 0;
+            return ty - tx;
+        });
+        res.json({ success: true, devices });
     }
     catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
