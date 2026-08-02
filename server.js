@@ -1,7 +1,14 @@
 // ============================================
 // B.T.C VPN — الخادم الاحترافي مع Firebase
+// النسخة النهائية الكاملة: Reality + Subscription + أمان + Health
 // إدارة كاملة + Hotspot + مصادقة مزدوجة + شحن ذاتي
 // + فصل الموزّع + التنشيط بأول استخدام + ربط جهاز + V2Ray
+//
+// 📌 النشر على Render:
+//    1. ضع هذا الملف في جذر المستودع (server.js)
+//    2. أضف package.json مع: "start": "node server.js"
+//    3. عيّن متغيّرات البيئة (FIREBASE_*, JWT_SECRET, ADMIN_PASSWORD, ...)
+//    4. الحزم المطلوبة: express cors bcryptjs jsonwebtoken firebase-admin
 // ============================================
 const express = require('express');
 const cors = require('cors');
@@ -31,14 +38,50 @@ const db = admin.firestore();
 const TS = admin.firestore.FieldValue;
 const app = express();
 const PORT = process.env.PORT || 3000;
-const JWT_SECRET = process.env.JWT_SECRET || 'btc_vpn_secret_2026';
 
-app.use(cors({ origin: '*' }));
+// ============================================
+// 🔵 أمان: JWT_SECRET + CORS قابل للتكوين
+// ============================================
+if (!process.env.JWT_SECRET) {
+    console.warn('⚠️  تحذير أمني: JWT_SECRET غير معيّن في env — يُستخدم سرٌّ افتراضيٌّ ضعيف. عيّنه قبل الإنتاج!');
+}
+const JWT_SECRET = process.env.JWT_SECRET || 'btc_vpn_dev_secret_change_me_2026';
+
+// CORS: عيّن ALLOWED_ORIGINS="https://app.com,https://panel.com" للإنتاج، أو اتركه فارغًا للتطوير (*)
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim())
+    : '*';
+app.use(cors(ALLOWED_ORIGINS === '*' ? { origin: '*' } : { origin: ALLOWED_ORIGINS }));
+
 app.use(express.json({ limit: '2mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // ============================================
-// أدوات مساعدة (فرز داخلي + مولّد V2Ray)
+// 🔵 أمان: Rate Limiter بسيط (بدون حزم خارجية)
+// ============================================
+const rateStore = new Map();
+function rateLimit(key, maxRequests, windowMs) {
+    return (req, res, next) => {
+        const id = `${key}:${req.ip || 'unknown'}`;
+        const now = Date.now();
+        let entry = rateStore.get(id);
+        if (!entry || now > entry.resetAt) entry = { count: 0, resetAt: now + windowMs };
+        entry.count++;
+        rateStore.set(id, entry);
+        if (entry.count > maxRequests) {
+            return res.status(429).json({ success: false, message: '🚫 محاولات كثيرة، انتظر دقيقةً ثم أعد المحاولة' });
+        }
+        next();
+    };
+}
+// تنظيف دوري للـ rate store (كل 10 دقائق)
+setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of rateStore.entries()) if (now > v.resetAt) rateStore.delete(k);
+}, 600000);
+
+// ============================================
+// أدوات مساعدة (فرز داخلي + مولّد V2Ray بدعم Reality)
 // ============================================
 function toMillis(t) {
     if (!t) return 0;
@@ -46,23 +89,57 @@ function toMillis(t) {
     const n = new Date(t).getTime();
     return isNaN(n) ? 0 : n;
 }
-// يبني config.json صالحاً لـ v2fly/v2ray-core من بيانات السيرفر
+
+// ✅ يبني config.json صالحاً لـ v2fly/xray-core — يدعم vmess/vless/trojan + tls/reality/none
 function buildV2Config(s) {
     const engine = (s.engine || 'v2ray');
     if (engine !== 'v2ray') return { _engine: engine, _note: 'محرك غير مدعوم في المولّد الحالي' };
-    const protocol = (s.protocol || 'vmess'), network = (s.network || 'ws'), security = (s.security || 'tls');
-    const address = s.host || '', port = Number(s.port) || 443, uuid = s.uuid || '';
-    const sni = s.sni_hostname || s.host || '', path = s.path || '/', hostHeader = s.ws_host || sni;
-    const stream = { network, security: security === 'tls' ? 'tls' : 'none' };
-    if (security === 'tls') stream.tlsSettings = { serverName: sni, allowInsecure: !!s.allow_insecure };
+
+    const protocol = (s.protocol || 'vmess');
+    const network = (s.network || 'ws');
+    const security = (s.security || 'tls');
+    const address = s.host || '';
+    const port = Number(s.port) || 443;
+    const uuid = s.uuid || '';
+    const sni = s.sni_hostname || s.host || '';
+    const path = s.path || '/';
+    const hostHeader = s.ws_host || sni;
+
+    // ✅ streamSettings مع دعم Reality الكامل
+    const stream = { network };
+    if (security === 'reality') {
+        stream.security = 'reality';
+        stream.realitySettings = {
+            serverName: sni,
+            fingerprint: s.fingerprint || 'chrome',
+            publicKey: s.public_key || '',
+            shortId: s.short_id || '',
+            spiderX: s.spider_x || ''
+        };
+    } else if (security === 'tls') {
+        stream.security = 'tls';
+        stream.tlsSettings = { serverName: sni, allowInsecure: !!s.allow_insecure };
+    } else {
+        stream.security = 'none';
+    }
+
     if (network === 'ws') stream.wsSettings = { path, headers: hostHeader ? { Host: hostHeader } : {} };
     else if (network === 'grpc') stream.grpcSettings = { serviceName: s.grpc_service || 'TunService', multiMode: false };
     else if (network === 'h2') stream.h2Settings = { path, host: hostHeader ? [hostHeader] : [] };
     else if (network === 'tcp') stream.tcpSettings = { header: { type: s.tcp_type || 'none' } };
+
     let outbound;
-    if (protocol === 'vmess') outbound = { protocol: 'vmess', settings: { vnext: [{ address, port, users: [{ id: uuid, alterId: Number(s.alter_id) || 0, security: s.vmess_security || 'auto' }] }] }, streamSettings: stream, tag: 'proxy' };
-    else if (protocol === 'vless') { const u = { id: uuid, encryption: 'none' }; if (network === 'tcp' && security === 'tls' && s.flow) u.flow = s.flow; outbound = { protocol: 'vless', settings: { vnext: [{ address, port, users: [u] }] }, streamSettings: stream, tag: 'proxy' }; }
-    else outbound = { protocol: 'trojan', settings: { servers: [{ address, port, password: uuid || s.password || '' }] }, streamSettings: Object.assign({}, stream, { security: 'tls', tlsSettings: stream.tlsSettings || { serverName: sni } }), tag: 'proxy' };
+    if (protocol === 'vmess') {
+        outbound = { protocol: 'vmess', settings: { vnext: [{ address, port, users: [{ id: uuid, alterId: Number(s.alter_id) || 0, security: s.vmess_security || 'auto' }] }] }, streamSettings: stream, tag: 'proxy' };
+    } else if (protocol === 'vless') {
+        const u = { id: uuid, encryption: 'none' };
+        // ✅ flow للـ vless مع tcp + (tls أو reality)
+        if (network === 'tcp' && (security === 'tls' || security === 'reality') && s.flow) u.flow = s.flow;
+        outbound = { protocol: 'vless', settings: { vnext: [{ address, port, users: [u] }] }, streamSettings: stream, tag: 'proxy' };
+    } else {
+        outbound = { protocol: 'trojan', settings: { servers: [{ address, port, password: s.password || uuid || '' }] }, streamSettings: Object.assign({}, stream, { security: 'tls', tlsSettings: stream.tlsSettings || { serverName: sni } }), tag: 'proxy' };
+    }
+
     return {
         log: { loglevel: s.loglevel || 'warning' },
         dns: { hosts: {}, servers: ['1.1.1.1', '8.8.8.8'] },
@@ -76,24 +153,48 @@ function buildV2Config(s) {
 }
 
 // ============================================
-// البيانات الافتراضية
+// ✅ بيانات السيرفر الحقيقي (Reality) — مصدرُ الحقيقةِ الوحيد
+// ============================================
+const REAL_SERVER = {
+    display_name: '🇩🇪 ألمانيا — Reality', company_name: 'عام', engine: 'v2ray',
+    protocol: 'vless', network: 'tcp', security: 'reality',
+    host: '169.58.99.96', port: 443,
+    uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e',
+    sni_hostname: 'www.microsoft.com',
+    flow: 'xtls-rprx-vision',
+    public_key: '8MFkXfSk25h85jnHjm1AVivYmD0QlAJ16-CjQEJRNA0',
+    short_id: 'a0d4be22caa51622',
+    fingerprint: 'chrome', spider_x: '',
+    path: '/', ws_host: '', grpc_service: 'TunService', tcp_type: 'none',
+    alter_id: 0, vmess_security: 'auto', payload: '', allow_insecure: 0,
+    is_gaming: 0, ping_ms: 40, is_active: 1
+};
+
+// ============================================
+// البيانات الافتراضية (مع السيرفر الحقيقي — إضافة أو تحديث)
 // ============================================
 async function seedData() {
     try {
+        // 🔵 باسوردات من env (مع fallback + تحذير)
+        const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin123';
+        const RESELLER_PASS = process.env.RESELLER_PASSWORD || 'reseller123';
+        if (!process.env.ADMIN_PASSWORD) console.warn('⚠️  ADMIN_PASSWORD غير معيّن — يُستخدم admin123. غيّره قبل الإنتاج!');
+
         const adminRef = db.collection('users').doc('admin');
         if (!(await adminRef.get()).exists) {
             console.log('🌱 إنشاء البيانات الافتراضية...');
             await adminRef.set({
-                username: 'admin', password: bcrypt.hashSync('admin123', 10),
+                username: 'admin', password: bcrypt.hashSync(ADMIN_PASS, 10),
                 role: 'admin', credits: 10000, referral_code: 'ADMIN001',
                 status: 'active', created_at: TS.serverTimestamp()
             });
             await db.collection('users').doc('reseller1').set({
-                username: 'reseller1', password: bcrypt.hashSync('reseller123', 10),
+                username: 'reseller1', password: bcrypt.hashSync(RESELLER_PASS, 10),
                 role: 'reseller', credits: 500, parent_id: 'admin', referral_code: 'RES001',
                 status: 'active', created_at: TS.serverTimestamp()
             });
         }
+
         if ((await db.collection('plans').get()).empty) {
             const plans = [
                 { name_ar: 'تجريبي', duration_days: 1, data_limit_mb: 100, price: 0, retail_price: 0, is_gaming: 0 },
@@ -105,15 +206,28 @@ async function seedData() {
             ];
             for (const p of plans) await db.collection('plans').add(p);
         }
-        if ((await db.collection('servers').get()).empty) {
-            const DEMO_UUID = 'a3482e88-686a-4a58-8126-99c9df64b7bf';
-            const servers = [
-                { display_name: 'فودافون 1', company_name: 'فودافون', engine: 'v2ray', protocol: 'vmess', uuid: DEMO_UUID, network: 'ws', security: 'tls', host: 'vpn1.btc.com', port: 443, sni_hostname: 'web.vodafone.com.eg', path: '/btc', ws_host: 'web.vodafone.com.eg', alter_id: 0, vmess_security: 'auto', allow_insecure: 0, is_gaming: 0, ping_ms: 45, is_active: 1 },
-                { display_name: 'اورنج 1', company_name: 'اورنج', engine: 'v2ray', protocol: 'vless', uuid: DEMO_UUID, network: 'grpc', security: 'tls', host: 'vpn3.btc.com', port: 443, sni_hostname: 'my.orange.eg', grpc_service: 'TunService', allow_insecure: 0, is_gaming: 0, ping_ms: 55, is_active: 1 },
-                { display_name: '🎮 PUBG Server', company_name: 'فودافون', engine: 'v2ray', protocol: 'trojan', uuid: 'trojan-pass-demo', network: 'ws', security: 'tls', host: 'gaming1.btc.com', port: 443, sni_hostname: 'web.vodafone.com.eg', path: '/game', ws_host: 'web.vodafone.com.eg', allow_insecure: 0, is_gaming: 1, ping_ms: 25, is_active: 1 }
-            ];
-            for (const s of servers) await db.collection('servers').add(s);
+
+        // ✅ السيرفر الحقيقي: يُضاف إن لم يكن موجودًا، أو يُحدَّث (merge) لضمان حقول Reality الكاملة
+        //    (يحمي من البيانات القديمة التي قد تكون ناقصة الحقول)
+        const realServerSnap = await db.collection('servers').where('host', '==', REAL_SERVER.host).get();
+        if (realServerSnap.empty) {
+            await db.collection('servers').add(REAL_SERVER);
+            console.log('✅ تمت إضافة السيرفر الحقيقي (169.58.99.96 — Reality)');
+        } else {
+            await realServerSnap.docs[0].ref.set(REAL_SERVER, { merge: true });
+            console.log('✅ تم تحديث السيرفر الحقيقي (ضمان حقول Reality الكاملة)');
         }
+
+        // أمثلة إضافية (غير نشطة — للتوضيح فقط، تُضاف مرة واحدة)
+        if ((await db.collection('servers').get()).size <= 1) {
+            const DEMO_UUID = 'a3482e88-686a-4a58-8126-99c9df64b7bf';
+            const demos = [
+                { display_name: 'فودافون 1 (مثال)', company_name: 'فودافون', engine: 'v2ray', protocol: 'vmess', uuid: DEMO_UUID, network: 'ws', security: 'tls', host: 'vpn1.btc.example', port: 443, sni_hostname: 'web.vodafone.com.eg', path: '/btc', ws_host: 'web.vodafone.com.eg', alter_id: 0, vmess_security: 'auto', allow_insecure: 0, is_gaming: 0, ping_ms: 45, is_active: 0 },
+                { display_name: '🎮 PUBG (مثال)', company_name: 'فودافون', engine: 'v2ray', protocol: 'trojan', uuid: 'trojan-pass-demo', network: 'ws', security: 'tls', host: 'gaming1.btc.example', port: 443, sni_hostname: 'web.vodafone.com.eg', path: '/game', ws_host: 'web.vodafone.com.eg', allow_insecure: 0, is_gaming: 1, ping_ms: 25, is_active: 0 }
+            ];
+            for (const s of demos) await db.collection('servers').add(s);
+        }
+
         console.log('✅ البيانات الافتراضية جاهزة');
     } catch (error) { console.error('❌ خطأ في seedData:', error.message); }
 }
@@ -141,9 +255,21 @@ function isUser(req, res, next) {
 }
 
 // ============================================
-// مصادقة اللوحة (موزّع / مدير فقط)
+// ✅ فحص الصحّة (لإيقاظ Render من النوم + مراقبة الحالة)
 // ============================================
-app.post('/api/login', async (req, res) => {
+app.get('/api/health', async (req, res) => {
+    try {
+        const serversCount = (await db.collection('servers').where('is_active', '==', 1).get()).size;
+        res.json({ success: true, status: 'alive', active_servers: serversCount, time: new Date().toISOString() });
+    } catch (e) {
+        res.json({ success: false, status: 'error', message: e.message });
+    }
+});
+
+// ============================================
+// مصادقة اللوحة (موزّع / مدير فقط) — مع rate limit
+// ============================================
+app.post('/api/login', rateLimit('login', 10, 60000), async (req, res) => {
     try {
         const { username, password } = req.body;
         if (!username || !password) return res.json({ success: false, message: 'بيانات ناقصة' });
@@ -158,9 +284,9 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ============================================
-// مصادقة التطبيق (مشترك نهائي) — يسمح لـ pending بالدخول لبدء التنشيط
+// مصادقة التطبيق (مشترك نهائي) — مع rate limit
 // ============================================
-app.post('/api/user/login', async (req, res) => {
+app.post('/api/user/login', rateLimit('userlogin', 8, 60000), async (req, res) => {
     try {
         const { username, password } = req.body;
         if (!username || !password) return res.json({ success: false, message: 'بيانات ناقصة' });
@@ -170,7 +296,6 @@ app.post('/api/user/login', async (req, res) => {
         if (a.status === 'frozen') return res.json({ success: false, message: '🔒 الحساب مجمّد' + (a.frozen_reason ? ': ' + a.frozen_reason : '') + '. تواصل مع الموزّع.' });
         if (a.status === 'blocked') return res.json({ success: false, message: 'الحساب محظور من الإدارة' });
         if (a.status === 'exhausted') return res.json({ success: false, message: '⛔ استُهلك رصيد البيانات المسموح' });
-        // فحص الانتهاء للمفعّل فقط (pending ليس له expiry_date بعد)
         if ((a.status === 'active' || a.status === 'expired') && a.expiry_date && new Date(a.expiry_date) < new Date()) {
             await db.collection('accounts').doc(doc.id).update({ status: 'expired' });
             return res.json({ success: false, message: '⏰ انتهت صلاحية الحساب' });
@@ -228,6 +353,33 @@ app.get('/api/me', authenticateToken, async (req, res) => {
 });
 
 // ============================================
+// ⭐ الاشتراك: أفضل سيرفر نشط + config جاهز (للتطبيق)
+// يدعم الفلترة: ?company=فودافون  &gaming=1
+// ============================================
+app.get('/api/user/subscription', authenticateToken, isUser, async (req, res) => {
+    try {
+        const { company, gaming } = req.query;
+        let snap = await db.collection('servers').where('is_active', '==', 1).get();
+        let servers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        if (company && company !== 'تلقائي — كل الشبكات') servers = servers.filter(s => (s.company_name || '') === company);
+        if (gaming === '1') servers = servers.filter(s => s.is_gaming === 1);
+        if (servers.length === 0) { // fallback: كل النشطة
+            snap = await db.collection('servers').where('is_active', '==', 1).get();
+            servers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        }
+        if (servers.length === 0) return res.json({ success: false, message: 'لا توجد سيرفرات متاحة حاليًا' });
+        servers.sort((a, b) => (a.ping_ms || 999) - (b.ping_ms || 999)); // الأسرع أولًا
+        const best = servers[0];
+        const config = buildV2Config(best);
+        res.json({
+            success: true, server_id: best.id, server_name: best.display_name,
+            company_name: best.company_name || 'عام', engine: best.engine || 'v2ray',
+            config, configString: JSON.stringify(config)
+        });
+    } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
+});
+
+// ============================================
 // الاستخدام: التنشيط بأول استخدام + ربط جهاز واحد
 // ============================================
 app.post('/api/usage/activate', authenticateToken, isUser, async (req, res) => {
@@ -241,14 +393,12 @@ app.post('/api/usage/activate', authenticateToken, isUser, async (req, res) => {
         if (a.status === 'blocked') return res.json({ success: false, message: 'الحساب محظور' });
         if (a.status === 'frozen') return res.json({ success: false, message: 'الحساب مجمّد' });
         if (a.status === 'exhausted') return res.json({ success: false, message: 'استُهلك رصيد البيانات' });
-        // مفعّل مسبقًا: تحقّق من البصمة (شخص واحد فقط)
         if (a.activated === 1 || a.status === 'active') {
             if (a.bound_device && a.bound_device !== fingerprint)
                 return res.json({ success: false, message: '⚠️ هذا الحساب مربوطٌ بجهازٍ آخر. تواصل مع الموزّع لفصله إن لزم.' });
             await ref.update({ bound_device: fingerprint, last_active_at: TS.serverTimestamp() });
             return res.json({ success: true, already: true, expiry_date: a.expiry_date, status: a.status });
         }
-        // غير مفعّل: نشّط الآن وابدأ العدّاد من هذه اللحظة
         const pd = await db.collection('plans').doc(a.plan_id).get();
         const plan = pd.exists ? pd.data() : { duration_days: 30, name_ar: '—' };
         const now = new Date();
@@ -261,7 +411,7 @@ app.post('/api/usage/activate', authenticateToken, isUser, async (req, res) => {
     } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
 
-// نبض الاستخدام: تحديث الاستهلاك + فرض الحدّ (مفتوح/محدّد)
+// نبض الاستخدام: تحديث الاستهلاك + فرض الحدّ
 app.post('/api/usage/heartbeat', authenticateToken, isUser, async (req, res) => {
     try {
         const { data_used_mb, fingerprint } = req.body;
@@ -325,7 +475,6 @@ app.get('/api/accounts', authenticateToken, staff, async (req, res) => {
     } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
 
-// إنشاء حساب — يولد "معلّقًا" بلا انتهاء حتى أول تنشيط
 app.post('/api/account/create', authenticateToken, staff, async (req, res) => {
     try {
         const { username, password, plan_id, is_random, bandwidth_mode, data_cap_mb } = req.body;
@@ -354,7 +503,6 @@ app.post('/api/account/create', authenticateToken, staff, async (req, res) => {
     } catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
 
-// تعديل حساب — محميّ بالملكية + يدعم الباندويدث وفصل الجهاز
 app.post('/api/accounts/update', authenticateToken, staff, async (req, res) => {
     try {
         const { id, status, frozen_reason, add_days, new_password, plan_id, allow_hotspot, max_hotspot_devices, bandwidth_mode, data_cap_mb, unbind } = req.body;
@@ -417,13 +565,12 @@ app.delete('/api/plans/:id', authenticateToken, onlyAdmin, async (req, res) => {
 });
 
 // ============================================
-// السيرفرات + مولّد V2Ray
+// السيرفرات + مولّد V2Ray (بحقول Reality الكاملة)
 // ============================================
 app.get('/api/servers', authenticateToken, async (req, res) => {
     try { const snap = await db.collection('servers').get(); res.json({ success: true, servers: snap.docs.map(d => ({ id: d.id, ...d.data() })) }); }
     catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
-// توليد الإعداد المحفوظ — متاح لكل دور مصدَّق (التطبيق يحتاجه)
 app.get('/api/servers/:id/v2config', authenticateToken, async (req, res) => {
     try {
         const doc = await db.collection('servers').doc(req.params.id).get();
@@ -445,6 +592,11 @@ app.post('/api/servers/save', authenticateToken, onlyAdmin, async (req, res) => 
             port: Number(b.port) || 443, sni_hostname: String(b.sni_hostname).trim(), path: String(b.path || '/'),
             ws_host: String(b.ws_host || ''), grpc_service: String(b.grpc_service || 'TunService'), tcp_type: String(b.tcp_type || 'none'),
             alter_id: Number(b.alter_id) || 0, vmess_security: String(b.vmess_security || 'auto'), flow: String(b.flow || ''),
+            // ✅ حقول Reality الكاملة
+            public_key: String(b.public_key || '').trim(),
+            short_id: String(b.short_id || '').trim(),
+            fingerprint: String(b.fingerprint || 'chrome').trim(),
+            spider_x: String(b.spider_x || '').trim(),
             payload: String(b.payload || ''), allow_insecure: b.allow_insecure ? 1 : 0,
             is_gaming: b.is_gaming ? 1 : 0, ping_ms: Number(b.ping_ms) || 50,
             is_active: (b.is_active === 0 || b.is_active === false) ? 0 : 1
@@ -482,7 +634,6 @@ app.post('/api/users/credit', authenticateToken, onlyAdmin, async (req, res) => 
     try { const { id, amount, mode } = req.body; const val = Math.abs(Number(amount) || 0); if (mode === 'set') await db.collection('users').doc(id).update({ credits: val }); else await db.collection('users').doc(id).update({ credits: TS.increment(val) }); res.json({ success: true, message: 'تم تحديث الرصيد' }); }
     catch (e) { res.json({ success: false, message: 'خطأ: ' + e.message }); }
 });
-// شحن المدير لرصيده بنفسه (المنبع) — admin فقط وعلى حسابه هو
 app.post('/api/users/self-credit', authenticateToken, onlyAdmin, async (req, res) => {
     try {
         const { amount } = req.body;
@@ -567,6 +718,12 @@ app.post('/api/hotspot/report', authenticateToken, async (req, res) => {
 app.use(express.static(__dirname));
 async function startServer() {
     await seedData();
-    app.listen(PORT, () => { console.log('========================================'); console.log('🚀 B.T.C VPN Server Started'); console.log('   فصل الموزّع + التنشيط + ربط الجهاز + V2Ray'); console.log(`📡 Port: ${PORT}`); console.log('========================================'); });
+    app.listen(PORT, () => {
+        console.log('========================================');
+        console.log('🚀 B.T.C VPN Server Started (Final)');
+        console.log('   Reality + Subscription + أمان + Health');
+        console.log(`📡 Port: ${PORT}`);
+        console.log('========================================');
+    });
 }
 startServer().catch(err => { console.error('Fatal:', err); process.exit(1); });
