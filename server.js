@@ -9,6 +9,7 @@
 //    الحزم: express cors bcryptjs jsonwebtoken firebase-admin
 //    متغيّرات البيئة: FIREBASE_*, JWT_SECRET, ADMIN_PASSWORD, RESELLER_PASSWORD
 // ============================================
+
 const express = require('express');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
@@ -78,28 +79,29 @@ setInterval(() => {
 }, 600000);
 
 // ============================================
-// أدوات مساعدة (فرز داخلي + مولّد V2Ray بدعم Reality)
+// أدوات مساعدة
 // ============================================
 function toMillis(t) {
     if (!t) return 0;
     if (typeof t.toMillis === 'function') return t.toMillis();
     const n = new Date(t).getTime();
-    return isNaN(n) ? 0 : n;
+    return isNaN(n) ? 0 : 0;
 }
 
+// ============================================
+// ⭐ مولّد V2Ray المحدث (يدعم TUN رسمياً للأندرويد)
+// ============================================
 function buildV2Config(s) {
     const engine = (s.engine || 'v2ray');
     if (engine !== 'v2ray') return { _engine: engine, _note: 'محرك غير مدعوم في المولّد الحالي' };
 
-    const protocol = (s.protocol || 'vmess');
-    const network = (s.network || 'ws');
-    const security = (s.security || 'tls');
+    const protocol = (s.protocol || 'vless');
+    const network = (s.network || 'tcp');
+    const security = (s.security || 'reality');
     const address = s.host || '';
     const port = Number(s.port) || 443;
     const uuid = s.uuid || '';
     const sni = s.sni_hostname || s.host || '';
-    const path = s.path || '/';
-    const hostHeader = s.ws_host || sni;
 
     const stream = { network };
     if (security === 'reality') {
@@ -118,38 +120,60 @@ function buildV2Config(s) {
         stream.security = 'none';
     }
 
-    if (network === 'ws') stream.wsSettings = { path, headers: hostHeader ? { Host: hostHeader } : {} };
+    // إضافة إعدادات الشبكة المحددة إذا لزم الأمر
+    if (network === 'ws') stream.wsSettings = { path: s.path || '/', headers: s.ws_host ? { Host: s.ws_host } : {} };
     else if (network === 'grpc') stream.grpcSettings = { serviceName: s.grpc_service || 'TunService', multiMode: false };
-    else if (network === 'h2') stream.h2Settings = { path, host: hostHeader ? [hostHeader] : [] };
+    else if (network === 'h2') stream.h2Settings = { path: s.path || '/', host: s.ws_host ? [s.ws_host] : [] };
     else if (network === 'tcp') stream.tcpSettings = { header: { type: s.tcp_type || 'none' } };
 
     let outbound;
-    if (protocol === 'vmess') {
-        outbound = { protocol: 'vmess', settings: { vnext: [{ address, port, users: [{ id: uuid, alterId: Number(s.alter_id) || 0, security: s.vmess_security || 'auto' }] }] }, streamSettings: stream, tag: 'proxy' };
-    } else if (protocol === 'vless') {
-        const u = { id: uuid, encryption: 'none' };
-        if (network === 'tcp' && (security === 'tls' || security === 'reality') && s.flow) u.flow = s.flow;
-        outbound = { protocol: 'vless', settings: { vnext: [{ address, port, users: [u] }] }, streamSettings: stream, tag: 'proxy' };
-    } else {
-        outbound = { protocol: 'trojan', settings: { servers: [{ address, port, password: s.password || uuid || '' }] }, streamSettings: Object.assign({}, stream, { security: 'tls', tlsSettings: stream.tlsSettings || { serverName: sni } }), tag: 'proxy' };
+    const u = { id: uuid, encryption: 'none' };
+    if (network === 'tcp' && (security === 'tls' || security === 'reality') && s.flow) {
+        u.flow = s.flow;
     }
+    
+    outbound = { 
+        protocol: protocol, 
+        settings: { vnext: [{ address, port, users: [u] }] }, 
+        streamSettings: stream, 
+        tag: 'proxy' 
+    };
 
     return {
-        log: { loglevel: s.loglevel || 'warning' },
-        dns: { hosts: {}, servers: ['1.1.1.1', '8.8.8.8'] },
+        log: { loglevel: 'warning' },
+        dns: { servers: ['1.1.1.1', '8.8.8.8'] },
         inbounds: [
-            { port: 10808, protocol: 'socks', listen: '127.0.0.1', settings: { auth: 'noauth', udp: true }, tag: 'socks-in' },
-            { port: 10809, protocol: 'http', listen: '127.0.0.1', tag: 'http-in' }
+            // ✅ إضافة مدخل TUN ليدعمه السيرفر رسمياً للأندرويد (MTU 1280 ليتطابق مع التطبيق)
+            {
+                tag: "tun-in",
+                protocol: "tun",
+                settings: { "address": ["26.26.26.2/30"], "mtu": 1280 },
+                sniffing: { "enabled": true, "destOverride": ["http", "tls", "quic"] }
+            },
+            { port: 10808, protocol: 'socks', listen: '127.0.0.1', settings: { auth: 'noauth', udp: true }, tag: 'socks-in' }
         ],
-        outbounds: [outbound, { protocol: 'freedom', tag: 'direct', settings: { domainStrategy: 'UseIP' } }, { protocol: 'blackhole', tag: 'block' }],
-        routing: { domainStrategy: 'AsIs', rules: [{ type: 'field', ip: ['geoip:private'], outboundTag: 'direct' }, { type: 'field', domain: ['geosite:private'], outboundTag: 'direct' }] }
+        outbounds: [
+            outbound, 
+            { protocol: 'freedom', tag: 'direct', settings: { domainStrategy: 'UseIP' } },
+            { protocol: 'blackhole', tag: 'block' }
+        ],
+        routing: { 
+            domainStrategy: 'IPIfNonMatch', 
+            rules: [
+                // استثناء السيرفر من النفق لعدم تعليق الإنترنت (منع الحلقة)
+                { type: 'field', ip: [address], outboundTag: 'direct' },
+                // توجيه بيانات TUN و SOCKS إلى البروكسي
+                { type: 'field', inboundTag: ['tun-in', 'socks-in'], outboundTag: 'proxy' },
+                // استثناء العناوين المحلية
+                { type: 'field', ip: ['geoip:private'], outboundTag: 'direct' },
+                { type: 'field', domain: ['geosite:private'], outboundTag: 'direct' }
+            ] 
+        }
     };
 }
 
 // ============================================
 // ✅ القوائم الحقيقية: عام + فودافون + أورنج
-// host = IP خادمك الفعلي، sni = القناع المجاني لدى الشركة.
-// ⚠️ فودافون/أورنج تعمل فعليًا فقط بعد ضبط dest مطابق على Contabo (لاحقًا).
 // ============================================
 const REAL_SERVERS = [
     { display_name: '🌐 عام (Reality)', company_name: 'عام', engine: 'v2ray', protocol: 'vless', network: 'tcp', security: 'reality', host: '169.58.99.96', port: 443, uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e', sni_hostname: 'www.microsoft.com', flow: 'xtls-rprx-vision', public_key: '8MFkXfSk25h85jnHjm1AVivYmD0QlAJ16-CjQEJRNA0', short_id: 'a0d4be22caa51622', fingerprint: 'chrome', spider_x: '', path: '/', ws_host: '', grpc_service: 'TunService', tcp_type: 'none', alter_id: 0, vmess_security: 'auto', payload: '', allow_insecure: 0, is_gaming: 0, ping_ms: 40, is_active: 1 },
@@ -158,7 +182,7 @@ const REAL_SERVERS = [
 ];
 
 // ============================================
-// البيانات الافتراضية (مع السيرفرات الحقيقية — إضافة أو تحديث)
+// البيانات الافتراضية
 // ============================================
 async function seedData() {
     try {
@@ -185,7 +209,6 @@ async function seedData() {
             for (const p of plans) await db.collection('plans').add(p);
         }
 
-        // ✅ أضف/حدّث كل سيرفر حقيقي (مطابقة على host + sni)
         for (const s of REAL_SERVERS) {
             const snap = await db.collection('servers').where('host', '==', s.host).where('sni_hostname', '==', s.sni_hostname).get();
             if (snap.empty) { await db.collection('servers').add(s); console.log('✅ +سيرفر ' + s.sni_hostname); }
@@ -219,7 +242,7 @@ function isUser(req, res, next) {
 }
 
 // ============================================
-// ✅ فحص الصحّة (لإيقاظ Render من النوم + مراقبة الحالة)
+// ✅ فحص الصحّة
 // ============================================
 app.get('/api/health', async (req, res) => {
     try {
@@ -231,7 +254,7 @@ app.get('/api/health', async (req, res) => {
 });
 
 // ============================================
-// مصادقة اللوحة (موزّع / مدير فقط) — مع rate limit
+// مصادقة اللوحة
 // ============================================
 app.post('/api/login', rateLimit('login', 10, 60000), async (req, res) => {
     try {
@@ -248,7 +271,7 @@ app.post('/api/login', rateLimit('login', 10, 60000), async (req, res) => {
 });
 
 // ============================================
-// مصادقة التطبيق (مشترك نهائي) — مع rate limit
+// مصادقة التطبيق
 // ============================================
 app.post('/api/user/login', rateLimit('userlogin', 8, 60000), async (req, res) => {
     try {
@@ -282,7 +305,7 @@ app.post('/api/user/login', rateLimit('userlogin', 8, 60000), async (req, res) =
 });
 
 // ============================================
-// /api/me ذكي (لوحة + تطبيق)
+// /api/me ذكي
 // ============================================
 app.get('/api/me', authenticateToken, async (req, res) => {
     try {
@@ -317,8 +340,7 @@ app.get('/api/me', authenticateToken, async (req, res) => {
 });
 
 // ============================================
-// ⭐ الاشتراك: أفضل سيرفر نشط + config جاهز (للتطبيق)
-// يدعم الفلترة: ?company=فودافون  &gaming=1
+// ⭐ الاشتراك: أفضل سيرفر نشط + config جاهز
 // ============================================
 app.get('/api/user/subscription', authenticateToken, isUser, async (req, res) => {
     try {
@@ -397,7 +419,7 @@ app.post('/api/usage/heartbeat', authenticateToken, isUser, async (req, res) => 
 });
 
 // ============================================
-// الإحصائيات (مفصولة: الموزّع يرى نفسه فقط)
+// الإحصائيات
 // ============================================
 app.get('/api/stats', authenticateToken, staff, async (req, res) => {
     try {
@@ -419,7 +441,7 @@ app.get('/api/stats', authenticateToken, staff, async (req, res) => {
 });
 
 // ============================================
-// الحسابات النهائية (مفصولة + فرز داخلي آمن)
+// الحسابات النهائية
 // ============================================
 app.get('/api/accounts', authenticateToken, staff, async (req, res) => {
     try {
@@ -528,7 +550,7 @@ app.delete('/api/plans/:id', authenticateToken, onlyAdmin, async (req, res) => {
 });
 
 // ============================================
-// السيرفرات + مولّد V2Ray (بحقول Reality الكاملة)
+// السيرفرات + مولّد V2Ray
 // ============================================
 app.get('/api/servers', authenticateToken, async (req, res) => {
     try { const snap = await db.collection('servers').get(); res.json({ success: true, servers: snap.docs.map(d => ({ id: d.id, ...d.data() })) }); }
@@ -623,7 +645,7 @@ app.delete('/api/users/:id', authenticateToken, onlyAdmin, async (req, res) => {
 });
 
 // ============================================
-// Hotspot (محمي بالملكية + فرز داخلي)
+// Hotspot
 // ============================================
 app.get('/api/hotspot/:accountId', authenticateToken, staff, async (req, res) => {
     try {
