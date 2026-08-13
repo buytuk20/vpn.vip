@@ -1,8 +1,11 @@
 // ============================================
 // B.T.C VPN — الخادم الاحترافي مع Firebase
-// النسخة النهائية الكاملة: Reality (Facebook Bypass) + Subscription + أمان + Health
-// إدارة كاملة + Hotspot + مصادقة مزدوجة + شحن ذاتي
-// + فصل الموزّع + التنشيط بأول استخدام + ربط جهاز + V2Ray
+// النسخة النهائية: سيرفر واحد (m.facebook.com Reality) + Subscription + أمان
+//
+// 🎯 الاستراتيجية: سيرفرٌ واحدٌ مُتقَن  (m.facebook.com)  بدلاً من ثلاثة
+//    • m.facebook.com = نسخة الموبايل، تبدو كحركة طبيعية من الهاتف
+//    • Facebook zero-rating على معظم الشبكات المصرية
+//    • الخادم على Contabo مضبوط بـ dest="m.facebook.com:443"
 //
 // 📌 النشر على Render:
 //    Build: npm install   |   Start: npm start
@@ -89,13 +92,11 @@ function toMillis(t) {
 }
 
 // ============================================
-// ⭐ مولّد V2Ray المحدث (يدعم فيسبوك كـ Dest لتجاوز الحجب)
-// ملاحظة هامة: هذا المولد يُنتج إعدادات "العميل" (Client). 
-// يجب أن يكون خادمك (Contabo) مضبوطاً بـ dest="www.facebook.com:443" و privateKey المطابق.
+// ⭐ مولّد V2Ray (Client-side config for m.facebook.com Reality)
 // ============================================
 function buildV2Config(s) {
     const engine = (s.engine || 'v2ray');
-    if (engine !== 'v2ray') return { _engine: engine, _note: 'محرك غير مدعوم في المولّد الحالي' };
+    if (engine !== 'v2ray') return { _engine: engine, _note: 'محرك غير مدعوم' };
 
     const protocol = (s.protocol || 'vless');
     const network = (s.network || 'tcp');
@@ -103,8 +104,7 @@ function buildV2Config(s) {
     const address = s.host || '';
     const port = Number(s.port) || 443;
     const uuid = s.uuid || '';
-    // استخدام فيسبوك كقيمة افتراضية لتجاوز الحجب إذا لم يتم تحديد SNI
-    const sni = s.sni_hostname || 'www.facebook.com'; 
+    const sni = s.sni_hostname || 'm.facebook.com';
 
     const stream = { network };
     if (security === 'reality') {
@@ -128,157 +128,119 @@ function buildV2Config(s) {
     else if (network === 'h2') stream.h2Settings = { path: s.path || '/', host: s.ws_host ? [s.ws_host] : [] };
     else if (network === 'tcp') stream.tcpSettings = { header: { type: s.tcp_type || 'none' } };
 
-    let outbound;
     const u = { id: uuid, encryption: 'none' };
     if (network === 'tcp' && (security === 'tls' || security === 'reality') && s.flow) {
         u.flow = s.flow;
     }
-    
-    outbound = { 
-        protocol: protocol, 
-        settings: { vnext: [{ address, port, users: [u] }] }, 
-        streamSettings: stream, 
-        tag: 'proxy' 
+
+    const outbound = {
+        protocol: protocol,
+        settings: { vnext: [{ address, port, users: [u] }] },
+        streamSettings: stream,
+        tag: 'proxy'
     };
 
     return {
         log: { loglevel: 'warning' },
-        dns: { servers: ['1.1.1.1', '8.8.8.8'] },
+        dns: { servers: ['1.1.1.1', '8.8.8.8', '1.0.0.1'] },
         inbounds: [
-            // ✅ مدخل TUN الرسمي لدعم تطبيق الأندرويد
-            {
-                tag: "tun-in",
-                protocol: "tun",
-                settings: { "address": ["26.26.26.2/30"], "mtu": 1280 },
-                sniffing: { "enabled": true, "destOverride": ["http", "tls", "quic"] }
-            },
-            { port: 10808, protocol: 'socks', listen: '127.0.0.1', settings: { auth: 'noauth', udp: true }, tag: 'socks-in' }
+            { port: 10808, protocol: 'socks', listen: '127.0.0.1', settings: { auth: 'noauth', udp: true }, tag: 'socks-in' },
+            { port: 10809, protocol: 'http', listen: '127.0.0.1', tag: 'http-in' }
         ],
         outbounds: [
-            outbound, 
+            outbound,
             { protocol: 'freedom', tag: 'direct', settings: { domainStrategy: 'UseIP' } },
             { protocol: 'blackhole', tag: 'block' }
         ],
-        routing: { 
-            domainStrategy: 'IPIfNonMatch', 
+        routing: {
+            domainStrategy: 'IPIfNonMatch',
             rules: [
-                // استثناء عنوان السيرفر نفسه لمنع حلقة التوجيه (Routing Loop)
                 { type: 'field', ip: [address], outboundTag: 'direct' },
-                // توجيه بيانات TUN و SOCKS إلى البروكسي
-                { type: 'field', inboundTag: ['tun-in', 'socks-in'], outboundTag: 'proxy' },
-                // استثناء العناوين المحلية والخاصة
+                { type: 'field', inboundTag: ['socks-in', 'http-in'], outboundTag: 'proxy' },
                 { type: 'field', ip: ['geoip:private'], outboundTag: 'direct' },
                 { type: 'field', domain: ['geosite:private'], outboundTag: 'direct' }
-            ] 
+            ]
         }
     };
 }
 
 // ============================================
-// ✅ القوائم الحقيقية: عام (فيسبوك) + فودافون + أورنج
-// ⚠️ ملاحظة: لكي تعمل فودافون/أورنج، يجب ضبط dest في خادم Contabo ليطابق SNI.
+// ✅ السيرفر الوحيد: m.facebook.com Reality
 // ============================================
 const REAL_SERVERS = [
-    { 
-        display_name: '🌐 عام (فيسبوك Reality)', 
-        company_name: 'عام', 
-        engine: 'v2ray', 
-        protocol: 'vless', 
-        network: 'tcp', 
-        security: 'reality', 
-        host: '169.58.99.96', 
-        port: 443, 
-        uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e', 
-        sni_hostname: 'www.facebook.com',
-        flow: 'xtls-rprx-vision', 
+    {
+        display_name: '🌐 B.T.C - Facebook Reality',
+        company_name: 'عام',
+        engine: 'v2ray',
+        protocol: 'vless',
+        network: 'tcp',
+        security: 'reality',
+        host: '169.58.99.96',
+        port: 443,
+        uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e',
+        sni_hostname: 'm.facebook.com',
+        flow: 'xtls-rprx-vision',
         public_key: 'wURAa_MGOp4qPgEGqSOZLL9NP1tTxKKJnZneT-zLRz4',
-        short_id: 'a0d4be22caa51622', 
-        fingerprint: 'chrome', 
-        spider_x: '', 
-        path: '/', 
-        ws_host: '', 
-        grpc_service: 'TunService', 
-        tcp_type: 'none', 
-        alter_id: 0, 
-        vmess_security: 'auto', 
-        payload: '', 
-        allow_insecure: 0, 
-        is_gaming: 0, 
-        ping_ms: 40, 
-        is_active: 1 
-    },
-    { 
-        display_name: '📶 فودافون (مجاني)', 
-        company_name: 'فودافون', 
-        engine: 'v2ray', 
-        protocol: 'vless', 
-        network: 'tcp', 
-        security: 'reality', 
-        host: '169.58.99.96', 
-        port: 8443,
-        uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e', 
-        sni_hostname: 'web.vodafone.com.eg', 
-        flow: 'xtls-rprx-vision', 
-        public_key: 'wURAa_MGOp4qPgEGqSOZLL9NP1tTxKKJnZneT-zLRz4',
-        short_id: 'a0d4be22caa51622', 
-        fingerprint: 'chrome', 
-        spider_x: '', 
-        path: '/', 
-        ws_host: '', 
-        grpc_service: 'TunService', 
-        tcp_type: 'none', 
-        alter_id: 0, 
-        vmess_security: 'auto', 
-        payload: '', 
-        allow_insecure: 0, 
-        is_gaming: 0, 
-        ping_ms: 30, 
-        is_active: 1 
-    },
-    { 
-        display_name: '📶 أورنج (مجاني)', 
-        company_name: 'أورنج', 
-        engine: 'v2ray', 
-        protocol: 'vless', 
-        network: 'tcp', 
-        security: 'reality', 
-        host: '169.58.99.96', 
-        port: 2053,
-        uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e', 
-        sni_hostname: 'www.orange.eg', 
-        flow: 'xtls-rprx-vision', 
-        public_key: 'wURAa_MGOp4qPgEGqSOZLL9NP1tTxKKJnZneT-zLRz4',
-        short_id: 'a0d4be22caa51622', 
-        fingerprint: 'chrome', 
-        spider_x: '', 
-        path: '/', 
-        ws_host: '', 
-        grpc_service: 'TunService', 
-        tcp_type: 'none', 
-        alter_id: 0, 
-        vmess_security: 'auto', 
-        payload: '', 
-        allow_insecure: 0, 
-        is_gaming: 0, 
-        ping_ms: 35, 
-        is_active: 1 
+        short_id: 'a0d4be22caa51622',
+        fingerprint: 'chrome',
+        spider_x: '',
+        path: '/',
+        ws_host: '',
+        grpc_service: 'TunService',
+        tcp_type: 'none',
+        alter_id: 0,
+        vmess_security: 'auto',
+        payload: '',
+        allow_insecure: 0,
+        is_gaming: 0,
+        ping_ms: 40,
+        is_active: 1
     }
 ];
 
 // ============================================
-// البيانات الافتراضية
+// 🧹 تنظيف السيرفرات القديمة (يُنفَّذ مرةً واحدة)
+// ============================================
+async function cleanupOldServers() {
+    try {
+        const snap = await db.collection('servers').get();
+        let deleted = 0;
+        for (const doc of snap.docs) {
+            const s = doc.data();
+            if (s.host !== '169.58.99.96' || s.sni_hostname !== 'm.facebook.com') {
+                await doc.ref.delete();
+                deleted++;
+                console.log('🗑️ حُذف سيرفر قديم: ' + (s.display_name || s.sni_hostname));
+            }
+        }
+        if (deleted > 0) console.log('✅ تم حذف ' + deleted + ' سيرفر قديم');
+    } catch (error) {
+        console.error('❌ خطأ في cleanupOldServers:', error.message);
+    }
+}
+
+// ============================================
+// 🌱 البيانات الافتراضية
 // ============================================
 async function seedData() {
     try {
         const ADMIN_PASS = process.env.ADMIN_PASSWORD || 'admin123';
         const RESELLER_PASS = process.env.RESELLER_PASSWORD || 'reseller123';
-        if (!process.env.ADMIN_PASSWORD) console.warn('⚠️  ADMIN_PASSWORD غير معيّن — يُستخدم admin123. غيّره قبل الإنتاج!');
+        if (!process.env.ADMIN_PASSWORD) console.warn('⚠️  ADMIN_PASSWORD غير معيّن — يُستخدم admin123');
 
         const adminRef = db.collection('users').doc('admin');
         if (!(await adminRef.get()).exists) {
             console.log('🌱 إنشاء البيانات الافتراضية...');
-            await adminRef.set({ username: 'admin', password: bcrypt.hashSync(ADMIN_PASS, 10), role: 'admin', credits: 10000, referral_code: 'ADMIN001', status: 'active', created_at: TS.serverTimestamp() });
-            await db.collection('users').doc('reseller1').set({ username: 'reseller1', password: bcrypt.hashSync(RESELLER_PASS, 10), role: 'reseller', credits: 500, parent_id: 'admin', referral_code: 'RES001', status: 'active', created_at: TS.serverTimestamp() });
+            await adminRef.set({
+                username: 'admin', password: bcrypt.hashSync(ADMIN_PASS, 10),
+                role: 'admin', credits: 10000, referral_code: 'ADMIN001',
+                status: 'active', created_at: TS.serverTimestamp()
+            });
+            await db.collection('users').doc('reseller1').set({
+                username: 'reseller1', password: bcrypt.hashSync(RESELLER_PASS, 10),
+                role: 'reseller', credits: 500, parent_id: 'admin', referral_code: 'RES001',
+                status: 'active', created_at: TS.serverTimestamp()
+            });
         }
 
         if ((await db.collection('plans').get()).empty) {
@@ -293,14 +255,22 @@ async function seedData() {
             for (const p of plans) await db.collection('plans').add(p);
         }
 
+        // إضافة/تحديث السيرفر الوحيد
         for (const s of REAL_SERVERS) {
             const snap = await db.collection('servers').where('host', '==', s.host).where('sni_hostname', '==', s.sni_hostname).get();
-            if (snap.empty) { await db.collection('servers').add(s); console.log('✅ +سيرفر ' + s.sni_hostname); }
-            else { await snap.docs[0].ref.set(s, { merge: true }); console.log('✅ تحديث سيرفر ' + s.sni_hostname); }
+            if (snap.empty) {
+                await db.collection('servers').add(s);
+                console.log('✅ +سيرفر ' + s.sni_hostname);
+            } else {
+                await snap.docs[0].ref.set(s, { merge: true });
+                console.log('✅ تحديث سيرفر ' + s.sni_hostname);
+            }
         }
 
         console.log('✅ البيانات الافتراضية جاهزة');
-    } catch (error) { console.error('❌ خطأ في seedData:', error.message); }
+    } catch (error) {
+        console.error('❌ خطأ في seedData:', error.message);
+    }
 }
 
 // ============================================
@@ -424,19 +394,12 @@ app.get('/api/me', authenticateToken, async (req, res) => {
 });
 
 // ============================================
-// ⭐ الاشتراك: أفضل سيرفر نشط + config جاهز
+// ⭐ الاشتراك: سيرفر Facebook + config جاهز
 // ============================================
 app.get('/api/user/subscription', authenticateToken, isUser, async (req, res) => {
     try {
-        const { company, gaming } = req.query;
-        let snap = await db.collection('servers').where('is_active', '==', 1).get();
+        const snap = await db.collection('servers').where('is_active', '==', 1).get();
         let servers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        if (company && company !== 'تلقائي — كل الشبكات') servers = servers.filter(s => (s.company_name || '') === company);
-        if (gaming === '1') servers = servers.filter(s => s.is_gaming === 1);
-        if (servers.length === 0) {
-            snap = await db.collection('servers').where('is_active', '==', 1).get();
-            servers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        }
         if (servers.length === 0) return res.json({ success: false, message: 'لا توجد سيرفرات متاحة حاليًا' });
         servers.sort((a, b) => (a.ping_ms || 999) - (b.ping_ms || 999));
         const best = servers[0];
@@ -450,7 +413,7 @@ app.get('/api/user/subscription', authenticateToken, isUser, async (req, res) =>
 });
 
 // ============================================
-// الاستخدام: التنشيط بأول استخدام + ربط جهاز واحد
+// الاستخدام: التنشيط + ربط جهاز
 // ============================================
 app.post('/api/usage/activate', authenticateToken, isUser, async (req, res) => {
     try {
@@ -525,7 +488,7 @@ app.get('/api/stats', authenticateToken, staff, async (req, res) => {
 });
 
 // ============================================
-// الحسابات النهائية
+// الحسابات
 // ============================================
 app.get('/api/accounts', authenticateToken, staff, async (req, res) => {
     try {
@@ -634,7 +597,7 @@ app.delete('/api/plans/:id', authenticateToken, onlyAdmin, async (req, res) => {
 });
 
 // ============================================
-// السيرفرات + مولّد V2Ray
+// السيرفرات
 // ============================================
 app.get('/api/servers', authenticateToken, async (req, res) => {
     try { const snap = await db.collection('servers').get(); res.json({ success: true, servers: snap.docs.map(d => ({ id: d.id, ...d.data() })) }); }
@@ -656,8 +619,8 @@ app.post('/api/servers/save', authenticateToken, onlyAdmin, async (req, res) => 
         if (!b.display_name || !b.host || !b.sni_hostname) return res.json({ success: false, message: 'الاسم والمضيف و SNI مطلوبة' });
         const data = {
             display_name: String(b.display_name).trim(), company_name: String(b.company_name || 'عام').trim(),
-            engine: String(b.engine || 'v2ray'), protocol: String(b.protocol || 'vmess'), uuid: String(b.uuid || '').trim(),
-            network: String(b.network || 'ws'), security: String(b.security || 'tls'), host: String(b.host).trim(),
+            engine: String(b.engine || 'v2ray'), protocol: String(b.protocol || 'vless'), uuid: String(b.uuid || '').trim(),
+            network: String(b.network || 'tcp'), security: String(b.security || 'reality'), host: String(b.host).trim(),
             port: Number(b.port) || 443, sni_hostname: String(b.sni_hostname).trim(), path: String(b.path || '/'),
             ws_host: String(b.ws_host || ''), grpc_service: String(b.grpc_service || 'TunService'), tcp_type: String(b.tcp_type || 'none'),
             alter_id: Number(b.alter_id) || 0, vmess_security: String(b.vmess_security || 'auto'), flow: String(b.flow || ''),
@@ -785,11 +748,12 @@ app.post('/api/hotspot/report', authenticateToken, async (req, res) => {
 // ============================================
 app.use(express.static(__dirname));
 async function startServer() {
+    await cleanupOldServers();   // ✅ يحذف السيرفرات القديمة (فودافون/أورنج/microsoft)
     await seedData();
     app.listen(PORT, () => {
         console.log('========================================');
-        console.log('🚀 B.T.C VPN Server Started (Final)');
-        console.log('   Reality (Facebook Bypass) + Subscription + أمان + Health');
+        console.log('🚀 B.T.C VPN Server Started (Facebook Only)');
+        console.log('   m.facebook.com Reality + Subscription + أمان');
         console.log(`📡 Port: ${PORT}`);
         console.log('========================================');
     });
