@@ -1,6 +1,6 @@
 // ============================================
 // B.T.C VPN — الخادم الاحترافي مع Firebase
-// النسخة النهائية الكاملة: Reality + Subscription + أمان + Health
+// النسخة النهائية الكاملة: Reality (Facebook Bypass) + Subscription + أمان + Health
 // إدارة كاملة + Hotspot + مصادقة مزدوجة + شحن ذاتي
 // + فصل الموزّع + التنشيط بأول استخدام + ربط جهاز + V2Ray
 //
@@ -85,11 +85,13 @@ function toMillis(t) {
     if (!t) return 0;
     if (typeof t.toMillis === 'function') return t.toMillis();
     const n = new Date(t).getTime();
-    return isNaN(n) ? 0 : 0;
+    return isNaN(n) ? 0 : n;
 }
 
 // ============================================
-// ⭐ مولّد V2Ray المحدث (يدعم TUN رسمياً للأندرويد)
+// ⭐ مولّد V2Ray المحدث (يدعم فيسبوك كـ Dest لتجاوز الحجب)
+// ملاحظة هامة: هذا المولد يُنتج إعدادات "العميل" (Client). 
+// يجب أن يكون خادمك (Contabo) مضبوطاً بـ dest="www.facebook.com:443" و privateKey المطابق.
 // ============================================
 function buildV2Config(s) {
     const engine = (s.engine || 'v2ray');
@@ -101,7 +103,8 @@ function buildV2Config(s) {
     const address = s.host || '';
     const port = Number(s.port) || 443;
     const uuid = s.uuid || '';
-    const sni = s.sni_hostname || s.host || '';
+    // استخدام فيسبوك كقيمة افتراضية لتجاوز الحجب إذا لم يتم تحديد SNI
+    const sni = s.sni_hostname || 'www.facebook.com'; 
 
     const stream = { network };
     if (security === 'reality') {
@@ -120,7 +123,6 @@ function buildV2Config(s) {
         stream.security = 'none';
     }
 
-    // إضافة إعدادات الشبكة المحددة إذا لزم الأمر
     if (network === 'ws') stream.wsSettings = { path: s.path || '/', headers: s.ws_host ? { Host: s.ws_host } : {} };
     else if (network === 'grpc') stream.grpcSettings = { serviceName: s.grpc_service || 'TunService', multiMode: false };
     else if (network === 'h2') stream.h2Settings = { path: s.path || '/', host: s.ws_host ? [s.ws_host] : [] };
@@ -143,7 +145,7 @@ function buildV2Config(s) {
         log: { loglevel: 'warning' },
         dns: { servers: ['1.1.1.1', '8.8.8.8'] },
         inbounds: [
-            // ✅ إضافة مدخل TUN ليدعمه السيرفر رسمياً للأندرويد (MTU 1280 ليتطابق مع التطبيق)
+            // ✅ مدخل TUN الرسمي لدعم تطبيق الأندرويد
             {
                 tag: "tun-in",
                 protocol: "tun",
@@ -160,11 +162,11 @@ function buildV2Config(s) {
         routing: { 
             domainStrategy: 'IPIfNonMatch', 
             rules: [
-                // استثناء السيرفر من النفق لعدم تعليق الإنترنت (منع الحلقة)
+                // استثناء عنوان السيرفر نفسه لمنع حلقة التوجيه (Routing Loop)
                 { type: 'field', ip: [address], outboundTag: 'direct' },
                 // توجيه بيانات TUN و SOCKS إلى البروكسي
                 { type: 'field', inboundTag: ['tun-in', 'socks-in'], outboundTag: 'proxy' },
-                // استثناء العناوين المحلية
+                // استثناء العناوين المحلية والخاصة
                 { type: 'field', ip: ['geoip:private'], outboundTag: 'direct' },
                 { type: 'field', domain: ['geosite:private'], outboundTag: 'direct' }
             ] 
@@ -173,12 +175,94 @@ function buildV2Config(s) {
 }
 
 // ============================================
-// ✅ القوائم الحقيقية: عام + فودافون + أورنج
+// ✅ القوائم الحقيقية: عام (فيسبوك) + فودافون + أورنج
+// ⚠️ ملاحظة: لكي تعمل فودافون/أورنج، يجب ضبط dest في خادم Contabo ليطابق SNI.
 // ============================================
 const REAL_SERVERS = [
-    { display_name: '🌐 عام (Reality)', company_name: 'عام', engine: 'v2ray', protocol: 'vless', network: 'tcp', security: 'reality', host: '169.58.99.96', port: 443, uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e', sni_hostname: 'www.microsoft.com', flow: 'xtls-rprx-vision', public_key: '8MFkXfSk25h85jnHjm1AVivYmD0QlAJ16-CjQEJRNA0', short_id: 'a0d4be22caa51622', fingerprint: 'chrome', spider_x: '', path: '/', ws_host: '', grpc_service: 'TunService', tcp_type: 'none', alter_id: 0, vmess_security: 'auto', payload: '', allow_insecure: 0, is_gaming: 0, ping_ms: 40, is_active: 1 },
-    { display_name: '📶 فودافون (مجاني)', company_name: 'فودافون', engine: 'v2ray', protocol: 'vless', network: 'tcp', security: 'reality', host: '169.58.99.96', port: 443, uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e', sni_hostname: 'web.vodafone.com.eg', flow: 'xtls-rprx-vision', public_key: '8MFkXfSk25h85jnHjm1AVivYmD0QlAJ16-CjQEJRNA0', short_id: 'a0d4be22caa51622', fingerprint: 'chrome', spider_x: '', path: '/', ws_host: '', grpc_service: 'TunService', tcp_type: 'none', alter_id: 0, vmess_security: 'auto', payload: '', allow_insecure: 0, is_gaming: 0, ping_ms: 30, is_active: 1 },
-    { display_name: '📶 أورنج (مجاني)', company_name: 'أورنج', engine: 'v2ray', protocol: 'vless', network: 'tcp', security: 'reality', host: '169.58.99.96', port: 443, uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e', sni_hostname: 'www.orange.eg', flow: 'xtls-rprx-vision', public_key: '8MFkXfSk25h85jnHjm1AVivYmD0QlAJ16-CjQEJRNA0', short_id: 'a0d4be22caa51622', fingerprint: 'chrome', spider_x: '', path: '/', ws_host: '', grpc_service: 'TunService', tcp_type: 'none', alter_id: 0, vmess_security: 'auto', payload: '', allow_insecure: 0, is_gaming: 0, ping_ms: 35, is_active: 1 }
+    { 
+        display_name: '🌐 عام (فيسبوك Reality)', 
+        company_name: 'عام', 
+        engine: 'v2ray', 
+        protocol: 'vless', 
+        network: 'tcp', 
+        security: 'reality', 
+        host: '169.58.99.96', 
+        port: 443, 
+        uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e', 
+        sni_hostname: 'www.facebook.com', // ✅ تم التعديل لتمرير الإنترنت عبر فيسبوك
+        flow: 'xtls-rprx-vision', 
+        public_key: '8MFkXfSk25h85jnHjm1AVivYmD0QlAJ16-CjQEJRNA0', 
+        short_id: 'a0d4be22caa51622', 
+        fingerprint: 'chrome', 
+        spider_x: '', 
+        path: '/', 
+        ws_host: '', 
+        grpc_service: 'TunService', 
+        tcp_type: 'none', 
+        alter_id: 0, 
+        vmess_security: 'auto', 
+        payload: '', 
+        allow_insecure: 0, 
+        is_gaming: 0, 
+        ping_ms: 40, 
+        is_active: 1 
+    },
+    { 
+        display_name: '📶 فودافون (مجاني)', 
+        company_name: 'فودافون', 
+        engine: 'v2ray', 
+        protocol: 'vless', 
+        network: 'tcp', 
+        security: 'reality', 
+        host: '169.58.99.96', 
+        port: 8443, // يُفضل استخدام بورت مختلف لفودافون
+        uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e', 
+        sni_hostname: 'web.vodafone.com.eg', 
+        flow: 'xtls-rprx-vision', 
+        public_key: '8MFkXfSk25h85jnHjm1AVivYmD0QlAJ16-CjQEJRNA0', 
+        short_id: 'a0d4be22caa51622', 
+        fingerprint: 'chrome', 
+        spider_x: '', 
+        path: '/', 
+        ws_host: '', 
+        grpc_service: 'TunService', 
+        tcp_type: 'none', 
+        alter_id: 0, 
+        vmess_security: 'auto', 
+        payload: '', 
+        allow_insecure: 0, 
+        is_gaming: 0, 
+        ping_ms: 30, 
+        is_active: 1 
+    },
+    { 
+        display_name: '📶 أورنج (مجاني)', 
+        company_name: 'أورنج', 
+        engine: 'v2ray', 
+        protocol: 'vless', 
+        network: 'tcp', 
+        security: 'reality', 
+        host: '169.58.99.96', 
+        port: 2053, // يُفضل استخدام بورت مختلف لأورنج
+        uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e', 
+        sni_hostname: 'www.orange.eg', 
+        flow: 'xtls-rprx-vision', 
+        public_key: '8MFkXfSk25h85jnHjm1AVivYmD0QlAJ16-CjQEJRNA0', 
+        short_id: 'a0d4be22caa51622', 
+        fingerprint: 'chrome', 
+        spider_x: '', 
+        path: '/', 
+        ws_host: '', 
+        grpc_service: 'TunService', 
+        tcp_type: 'none', 
+        alter_id: 0, 
+        vmess_security: 'auto', 
+        payload: '', 
+        allow_insecure: 0, 
+        is_gaming: 0, 
+        ping_ms: 35, 
+        is_active: 1 
+    }
 ];
 
 // ============================================
@@ -705,7 +789,7 @@ async function startServer() {
     app.listen(PORT, () => {
         console.log('========================================');
         console.log('🚀 B.T.C VPN Server Started (Final)');
-        console.log('   Reality + Subscription + أمان + Health');
+        console.log('   Reality (Facebook Bypass) + Subscription + أمان + Health');
         console.log(`📡 Port: ${PORT}`);
         console.log('========================================');
     });
