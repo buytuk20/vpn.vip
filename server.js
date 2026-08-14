@@ -1,11 +1,12 @@
 // ============================================
-// B.T.C VPN — الخادم الاحترافي مع Firebase
-// النسخة النهائية: سيرفر واحد (m.facebook.com Reality) + Subscription + أمان
+// B.T.C VPN — الخادم الاحترافي الكامل
+// النسخة النهائية: Reality (m.facebook.com) + TUN Direct Mode
 //
-// 🎯 الاستراتيجية: سيرفرٌ واحدٌ مُتقَن  (m.facebook.com)  بدلاً من ثلاثة
-//    • m.facebook.com = نسخة الموبايل، تبدو كحركة طبيعية من الهاتف
-//    • Facebook zero-rating على معظم الشبكات المصرية
-//    • الخادم على Contabo مضبوط بـ dest="m.facebook.com:443"
+// 🎯 الاستراتيجية:
+//    • سيرفر واحد (m.facebook.com) — zero-rating على الشبكات المصرية
+//    • TUN Direct Mode — بدون tun2socks bridge
+//    • DNS خارج النفق — يمنع فشل DNS عبر Facebook
+//    • IPs خاصة → direct — Hotspot يعمل
 //
 // 📌 النشر على Render:
 //    Build: npm install   |   Start: npm start
@@ -18,6 +19,9 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
+// ============================================
+// Firebase Admin SDK
+// ============================================
 let admin;
 try {
     admin = require('firebase-admin');
@@ -92,11 +96,11 @@ function toMillis(t) {
 }
 
 // ============================================
-// ⭐ مولّد V2Ray (Client-side config for m.facebook.com Reality)
+// ⭐ مولّد V2Ray (TUN Direct Mode + DNS خارج النفق)
 // ============================================
 function buildV2Config(s) {
     const engine = (s.engine || 'v2ray');
-    if (engine !== 'v2ray') return { _engine: engine, _note: 'محرك غير مدعوم' };
+    if (engine !== 'v2ray') return { _engine: engine, _note: 'محرك غير مدعوم في المولّد الحالي' };
 
     const protocol = (s.protocol || 'vless');
     const network = (s.network || 'tcp');
@@ -142,23 +146,38 @@ function buildV2Config(s) {
 
     return {
         log: { loglevel: 'warning' },
-        dns: { servers: ['1.1.1.1', '8.8.8.8', '1.0.0.1'] },
+        // ✅ DNS خارج النفق — لا يمرّ عبر m.facebook.com
+        dns: {
+            servers: ['8.8.8.8', '1.1.1.1', '1.0.0.1'],
+            queryStrategy: 'UseIPv4'
+        },
         inbounds: [
-            { port: 10808, protocol: 'socks', listen: '127.0.0.1', settings: { auth: 'noauth', udp: true }, tag: 'socks-in' },
-            { port: 10809, protocol: 'http', listen: '127.0.0.1', tag: 'http-in' }
+            // ✅ tun inbound — لـ TUN Direct Mode
+            {
+                tag: 'tun-in',
+                protocol: 'dokodemo-door',
+                settings: { network: 'tcp,udp', followRedirect: true },
+                sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'], routeOnly: false }
+            },
+            // socks inbound كاحتياطي
+            { port: 10808, protocol: 'socks', listen: '127.0.0.1', settings: { auth: 'noauth', udp: true }, tag: 'socks-in' }
         ],
         outbounds: [
             outbound,
-            { protocol: 'freedom', tag: 'direct', settings: { domainStrategy: 'UseIP' } },
+            { protocol: 'freedom', tag: 'direct', settings: { domainStrategy: 'UseIPv4' } },
             { protocol: 'blackhole', tag: 'block' }
         ],
         routing: {
             domainStrategy: 'IPIfNonMatch',
+            domainMatcher: 'hybrid',
             rules: [
+                // ✅ استثناء خادمنا (منع Loop)
                 { type: 'field', ip: [address], outboundTag: 'direct' },
-                { type: 'field', inboundTag: ['socks-in', 'http-in'], outboundTag: 'proxy' },
-                { type: 'field', ip: ['geoip:private'], outboundTag: 'direct' },
-                { type: 'field', domain: ['geosite:private'], outboundTag: 'direct' }
+                // ✅ IPs خاصة → direct (Hotspot + محلي)
+                { type: 'field', ip: ['geoip:private', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '127.0.0.0/8'], outboundTag: 'direct' },
+                { type: 'field', domain: ['geosite:private'], outboundTag: 'direct' },
+                // باقي الحركة → proxy (النفق)
+                { type: 'field', network: 'tcp,udp', outboundTag: 'proxy' }
             ]
         }
     };
@@ -199,7 +218,7 @@ const REAL_SERVERS = [
 ];
 
 // ============================================
-// 🧹 تنظيف السيرفرات القديمة (يُنفَّذ مرةً واحدة)
+// 🧹 تنظيف السيرفرات القديمة
 // ============================================
 async function cleanupOldServers() {
     try {
@@ -255,7 +274,6 @@ async function seedData() {
             for (const p of plans) await db.collection('plans').add(p);
         }
 
-        // إضافة/تحديث السيرفر الوحيد
         for (const s of REAL_SERVERS) {
             const snap = await db.collection('servers').where('host', '==', s.host).where('sni_hostname', '==', s.sni_hostname).get();
             if (snap.empty) {
@@ -748,12 +766,13 @@ app.post('/api/hotspot/report', authenticateToken, async (req, res) => {
 // ============================================
 app.use(express.static(__dirname));
 async function startServer() {
-    await cleanupOldServers();   // ✅ يحذف السيرفرات القديمة (فودافون/أورنج/microsoft)
+    await cleanupOldServers();
     await seedData();
     app.listen(PORT, () => {
         console.log('========================================');
-        console.log('🚀 B.T.C VPN Server Started (Facebook Only)');
-        console.log('   m.facebook.com Reality + Subscription + أمان');
+        console.log('🚀 B.T.C VPN Server Started (Final)');
+        console.log('   m.facebook.com Reality + TUN Direct Mode');
+        console.log('   DNS خارج النفق + IPs خاصة → direct');
         console.log(`📡 Port: ${PORT}`);
         console.log('========================================');
     });
