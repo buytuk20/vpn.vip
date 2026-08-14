@@ -1,12 +1,11 @@
 // ============================================
 // B.T.C VPN — الخادم الاحترافي الكامل
-// النسخة النهائية: Reality (m.facebook.com) + TUN Direct Mode
+// النسخة النهائية: Reality (m.facebook.com) + Bridge Mode (SOCKS)
 //
 // 🎯 الاستراتيجية:
 //    • سيرفر واحد (m.facebook.com) — zero-rating على الشبكات المصرية
-//    • TUN Direct Mode — بدون tun2socks bridge
-//    • DNS خارج النفق — يمنع فشل DNS عبر Facebook
-//    • IPs خاصة → direct — Hotspot يعمل
+//    • Bridge Mode: SOCKS على 10808 — التطبيق يستخدم tun2socks
+//    • مطابقة 100% مع بنية التطبيق
 //
 // 📌 النشر على Render:
 //    Build: npm install   |   Start: npm start
@@ -96,12 +95,10 @@ function toMillis(t) {
 }
 
 // ============================================
-// ⭐ مولّد V2Ray (TUN Direct Mode + DNS خارج النفق)
+// ✅ مولّد V2Ray — Bridge Mode (SOCKS on 10808)
 // ============================================
 function buildV2Config(s) {
-    const engine = (s.engine || 'v2ray');
-    if (engine !== 'v2ray') return { _engine: engine, _note: 'محرك غير مدعوم في المولّد الحالي' };
-
+    // تحديد البروتوكول (VLESS غالباً)
     const protocol = (s.protocol || 'vless');
     const network = (s.network || 'tcp');
     const security = (s.security || 'reality');
@@ -123,19 +120,10 @@ function buildV2Config(s) {
     } else if (security === 'tls') {
         stream.security = 'tls';
         stream.tlsSettings = { serverName: sni, allowInsecure: !!s.allow_insecure };
-    } else {
-        stream.security = 'none';
     }
-
-    if (network === 'ws') stream.wsSettings = { path: s.path || '/', headers: s.ws_host ? { Host: s.ws_host } : {} };
-    else if (network === 'grpc') stream.grpcSettings = { serviceName: s.grpc_service || 'TunService', multiMode: false };
-    else if (network === 'h2') stream.h2Settings = { path: s.path || '/', host: s.ws_host ? [s.ws_host] : [] };
-    else if (network === 'tcp') stream.tcpSettings = { header: { type: s.tcp_type || 'none' } };
 
     const u = { id: uuid, encryption: 'none' };
-    if (network === 'tcp' && (security === 'tls' || security === 'reality') && s.flow) {
-        u.flow = s.flow;
-    }
+    if (s.flow) u.flow = s.flow;
 
     const outbound = {
         protocol: protocol,
@@ -144,40 +132,34 @@ function buildV2Config(s) {
         tag: 'proxy'
     };
 
+    // ⚠️ الجزء الأهم: يجب أن يكون الـ inbound هو SOCKS على 10808
     return {
-        log: { loglevel: 'warning' },
-        // ✅ DNS خارج النفق — لا يمرّ عبر m.facebook.com
+        log: { loglevel: "warning" },
         dns: {
-            servers: ['8.8.8.8', '1.1.1.1', '1.0.0.1'],
-            queryStrategy: 'UseIPv4'
+            servers: ["8.8.8.8", "1.1.1.1"],
+            queryStrategy: "UseIPv4"
         },
         inbounds: [
-            // ✅ tun inbound — لـ TUN Direct Mode
             {
-                tag: 'tun-in',
-                protocol: 'dokodemo-door',
-                settings: { network: 'tcp,udp', followRedirect: true },
-                sniffing: { enabled: true, destOverride: ['http', 'tls', 'quic'], routeOnly: false }
-            },
-            // socks inbound كاحتياطي
-            { port: 10808, protocol: 'socks', listen: '127.0.0.1', settings: { auth: 'noauth', udp: true }, tag: 'socks-in' }
+                tag: "socks-in",
+                port: 10808, // التزام كامل بالمنفذ الذي يطلبه التطبيق
+                protocol: "socks",
+                listen: "127.0.0.1",
+                settings: { auth: "noauth", udp: true },
+                sniffing: { enabled: true, destOverride: ["http", "tls", "quic"] }
+            }
         ],
         outbounds: [
             outbound,
-            { protocol: 'freedom', tag: 'direct', settings: { domainStrategy: 'UseIPv4' } },
-            { protocol: 'blackhole', tag: 'block' }
+            { protocol: "freedom", tag: "direct", settings: { domainStrategy: "UseIPv4" } }
         ],
         routing: {
-            domainStrategy: 'IPIfNonMatch',
-            domainMatcher: 'hybrid',
+            domainStrategy: "IPIfNonMatch",
             rules: [
-                // ✅ استثناء خادمنا (منع Loop)
-                { type: 'field', ip: [address], outboundTag: 'direct' },
-                // ✅ IPs خاصة → direct (Hotspot + محلي)
-                { type: 'field', ip: ['geoip:private', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16', '127.0.0.0/8'], outboundTag: 'direct' },
-                { type: 'field', domain: ['geosite:private'], outboundTag: 'direct' },
-                // باقي الحركة → proxy (النفق)
-                { type: 'field', network: 'tcp,udp', outboundTag: 'proxy' }
+                { type: "field", ip: [address], outboundTag: "direct" },
+                { type: "field", port: 53, outboundTag: "proxy" },
+                { type: "field", ip: ["geoip:private"], outboundTag: "direct" },
+                { type: "field", network: "tcp,udp", outboundTag: "proxy" }
             ]
         }
     };
@@ -412,7 +394,7 @@ app.get('/api/me', authenticateToken, async (req, res) => {
 });
 
 // ============================================
-// ⭐ الاشتراك: سيرفر Facebook + config جاهز
+// ⭐ الاشتراك: سيرفر Facebook + config جاهز (Bridge Mode)
 // ============================================
 app.get('/api/user/subscription', authenticateToken, isUser, async (req, res) => {
     try {
@@ -771,8 +753,8 @@ async function startServer() {
     app.listen(PORT, () => {
         console.log('========================================');
         console.log('🚀 B.T.C VPN Server Started (Final)');
-        console.log('   m.facebook.com Reality + TUN Direct Mode');
-        console.log('   DNS خارج النفق + IPs خاصة → direct');
+        console.log('   m.facebook.com Reality + Bridge Mode');
+        console.log('   SOCKS inbound on port 10808');
         console.log(`📡 Port: ${PORT}`);
         console.log('========================================');
     });
