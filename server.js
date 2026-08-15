@@ -100,8 +100,10 @@ function toMillis(t) {
 }
 
 // ============================================
-// ⭐ مولّد V2Ray — Direct TUN Mode (مطابق للتطبيق 100%)
+// ⭐ مولّد V2Ray — Direct TUN Mode (مطابق 100% للتطبيق)
 // ============================================
+// التطبيق يستخدم: controller.startLoop(config, rawFd)
+// لذا نحتاج tun inbound ليقرأ Xray البيانات من الـ FD مباشرة
 function buildV2Config(s) {
     const protocol = (s.protocol || 'vless');
     const network = (s.network || 'tcp');
@@ -164,8 +166,6 @@ function buildV2Config(s) {
     };
 
     // ✅ tun inbound — يطابق Direct TUN Mode في التطبيق
-    // التطبيق يستخدم: controller.startLoop(config, rawFd)
-    // لذا Xray يحتاج tun inbound لقراءة البيانات من الـ fd مباشرة
     return {
         log: { loglevel: "warning" },
 
@@ -177,8 +177,8 @@ function buildV2Config(s) {
 
         inbounds: [
             {
-                tag: "tun-in",
-                protocol: "tun",              // ✅ بروتوكول TUN المدمج
+                tag: "tun-in",                // ✅ اسم الـ inbound
+                protocol: "tun",              // ✅ بروتوكول TUN (ليس socks!)
                 settings: {
                     address: ["10.0.0.1/24"], // ✅ يطابق Builder.addAddress("10.0.0.1", 24)
                     mtu: 1280,                // ✅ يطابق Builder.setMtu(1280)
@@ -239,6 +239,7 @@ function buildV2Config(s) {
 
 // ============================================
 // ✅ السيرفر الوحيد: m.facebook.com Reality
+// (مطابق تماماً لإعدادات VPS في /usr/local/etc/xray/config.json)
 // ============================================
 const REAL_SERVERS = [
     {
@@ -401,7 +402,8 @@ app.get('/api/health', async (req, res) => {
             status: 'alive',
             active_servers: serversCount,
             time: new Date().toISOString(),
-            mode: 'Direct TUN'
+            mode: 'Direct TUN',
+            engine: 'Xray 26.7.28'
         });
     } catch (e) {
         res.json({ success: false, status: 'error', message: e.message });
