@@ -69,15 +69,7 @@ app.use(express.urlencoded({ extended: true }));
 const rateStore = new Map();
 function rateLimit(key, maxRequests, windowMs) {
     return (req, res, next) => {
-        const id = `${key}:${req.ip || 'unknown'}`;
-        const now = Date.now();
-        let entry = rateStore.get(id);
-        if (!entry || now > entry.resetAt) entry = { count: 0, resetAt: now + windowMs };
-        entry.count++;
-        rateStore.set(id, entry);
-        function rateLimit(key, maxRequests, windowMs) {
-    return (req, res, next) => {
-        const id = key + ":" + (req.ip || 'unknown'); // ✅ استخدام String Concatenation
+        const id = key + ":" + (req.ip || 'unknown');
         const now = Date.now();
         let entry = rateStore.get(id);
         if (!entry || now > entry.resetAt) entry = { count: 0, resetAt: now + windowMs };
@@ -92,6 +84,10 @@ function rateLimit(key, maxRequests, windowMs) {
         next();
     };
 }
+setInterval(() => {
+    const now = Date.now();
+    for (const [k, v] of rateStore.entries()) if (now > v.resetAt) rateStore.delete(k);
+}, 600000);
 
 // ============================================
 // أدوات مساعدة
