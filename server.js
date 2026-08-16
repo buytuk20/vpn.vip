@@ -1,9 +1,9 @@
 // ============================================
 // B.T.C VPN — الخادم الاحترافي الكامل
-// النسخة النهائية: Reality + Direct TUN Mode
+// النسخة النهائية: Multi-SNI (اختيار ديناميكي حسب الشركة)
 //
 // 🎯 الاستراتيجية:
-//    • سيرفر m.facebook.com — zero-rating على الشبكات المصرية
+//    • 5 أقنعة (SNI) — فيسبوك، فودافون، أورنج، اتصالات، وي
 //    • Direct TUN Mode: tun inbound يطابق التطبيق
 //    • DNS خارج النفق (dns-out) — يمنع فشل DNS
 //    • IPs خاصة → direct — Hotspot يعمل
@@ -11,8 +11,6 @@
 //
 // 📌 النشر على Render:
 //    Build: npm install   |   Start: npm start
-//    الحزم: express cors bcryptjs jsonwebtoken firebase-admin
-//    متغيّرات البيئة: FIREBASE_*, JWT_SECRET, ADMIN_PASSWORD, RESELLER_PASSWORD
 // ============================================
 
 const express = require('express');
@@ -100,10 +98,25 @@ function toMillis(t) {
 }
 
 // ============================================
+// 🎯 تطبيع اسم الشركة (عربي/إنجليزي → موحّد)
+// ============================================
+function normalizeCompany(c) {
+    if (!c) return null;
+    const lower = String(c).trim().toLowerCase();
+    const map = {
+        'vodafone': 'فودافون', 'فودافون': 'فودافون',
+        'orange': 'أورنج', 'أورنج': 'أورنج', 'اورنج': 'أورنج',
+        'etisalat': 'اتصالات', 'اتصالات': 'اتصالات',
+        'we': 'وي', 'وي': 'وي', 'te': 'وي',
+        'facebook': 'عام', 'فيسبوك': 'عام', 'عام': 'عام',
+        'تلقائي': null, 'auto': null
+    };
+    return map.hasOwnProperty(lower) ? map[lower] : (map[lower.replace(/\s+/g, '')] || null);
+}
+
+// ============================================
 // ⭐ مولّد V2Ray — Direct TUN Mode (مطابق 100% للتطبيق)
 // ============================================
-// التطبيق يستخدم: controller.startLoop(config, rawFd)
-// لذا نحتاج tun inbound ليقرأ Xray البيانات من الـ FD مباشرة
 function buildV2Config(s) {
     const protocol = (s.protocol || 'vless');
     const network = (s.network || 'tcp');
@@ -113,7 +126,6 @@ function buildV2Config(s) {
     const uuid = s.uuid || '';
     const sni = s.sni_hostname || 'm.facebook.com';
 
-    // بناء streamSettings
     const stream = { network };
     if (security === 'reality') {
         stream.security = 'reality';
@@ -131,33 +143,21 @@ function buildV2Config(s) {
         stream.security = 'none';
     }
 
-    // إعدادات الشبكة
     if (network === 'ws') {
-        stream.wsSettings = {
-            path: s.path || '/',
-            headers: s.ws_host ? { Host: s.ws_host } : {}
-        };
+        stream.wsSettings = { path: s.path || '/', headers: s.ws_host ? { Host: s.ws_host } : {} };
     } else if (network === 'grpc') {
-        stream.grpcSettings = {
-            serviceName: s.grpc_service || 'TunService',
-            multiMode: false
-        };
+        stream.grpcSettings = { serviceName: s.grpc_service || 'TunService', multiMode: false };
     } else if (network === 'h2') {
-        stream.h2Settings = {
-            path: s.path || '/',
-            host: s.ws_host ? [s.ws_host] : []
-        };
+        stream.h2Settings = { path: s.path || '/', host: s.ws_host ? [s.ws_host] : [] };
     } else if (network === 'tcp') {
         stream.tcpSettings = { header: { type: s.tcp_type || 'none' } };
     }
 
-    // بناء user object
     const u = { id: uuid, encryption: 'none' };
     if (s.flow && network === 'tcp' && (security === 'tls' || security === 'reality')) {
         u.flow = s.flow;
     }
 
-    // outbound الرئيسي (النفق)
     const outbound = {
         protocol: protocol,
         settings: { vnext: [{ address, port, users: [u] }] },
@@ -165,24 +165,20 @@ function buildV2Config(s) {
         tag: 'proxy'
     };
 
-    // ✅ tun inbound — يطابق Direct TUN Mode في التطبيق
     return {
         log: { loglevel: "warning" },
-
-        // DNS خارج النفق — لا يمر عبر m.facebook.com
         dns: {
             servers: ["8.8.8.8", "1.1.1.1", "1.0.0.1"],
             queryStrategy: "UseIPv4"
         },
-
         inbounds: [
             {
-                tag: "tun-in",                // ✅ اسم الـ inbound
-                protocol: "tun",              // ✅ بروتوكول TUN (ليس socks!)
+                tag: "tun-in",
+                protocol: "tun",
                 settings: {
-                    address: ["10.0.0.1/24"], // ✅ يطابق Builder.addAddress("10.0.0.1", 24)
-                    mtu: 1280,                // ✅ يطابق Builder.setMtu(1280)
-                    stack: "gvisor"           // ✅ stack متوافق مع أندرويد
+                    address: ["10.0.0.1/24"],
+                    mtu: 1280,
+                    stack: "gvisor"
                 },
                 sniffing: {
                     enabled: true,
@@ -191,32 +187,19 @@ function buildV2Config(s) {
                 }
             }
         ],
-
         outbounds: [
             outbound,
             { protocol: "dns", tag: "dns-out" },
-            {
-                protocol: "freedom",
-                tag: "direct",
-                settings: { domainStrategy: "UseIPv4" }
-            },
+            { protocol: "freedom", tag: "direct", settings: { domainStrategy: "UseIPv4" } },
             { protocol: "blackhole", tag: "block" }
         ],
-
         routing: {
             domainStrategy: "IPIfNonMatch",
             domainMatcher: "hybrid",
             rules: [
-                // ✅ استثناء خادمنا (منع Loop)
                 { type: "field", ip: [address], outboundTag: "direct" },
-
-                // ✅ DNS خارج النفق
                 { type: "field", port: 53, outboundTag: "dns-out" },
-
-                // ✅ حظر الإعلانات
                 { type: "field", domain: ["geosite:category-ads-all"], outboundTag: "block" },
-
-                // ✅ IPs خاصة → direct (Hotspot + محلي)
                 {
                     type: "field",
                     ip: [
@@ -229,8 +212,6 @@ function buildV2Config(s) {
                     ],
                     outboundTag: "direct"
                 },
-
-                // باقي الحركة → proxy (النفق)
                 { type: "field", network: "tcp,udp", outboundTag: "proxy" }
             ]
         }
@@ -238,38 +219,39 @@ function buildV2Config(s) {
 }
 
 // ============================================
-// ✅ السيرفر الوحيد: m.facebook.com Reality
-// (مطابق تماماً لإعدادات VPS في /usr/local/etc/xray/config.json)
+// ✅ الخوادم الخمسة (قناع مختلف لكل شركة)
+// ⚠️ نفس الـ IP والمنافذ يجب أن تكون مفتوحة ومعدّة في Xray على VPS
 // ============================================
+const COMMON_KEYS = {
+    engine: 'v2ray',
+    protocol: 'vless',
+    network: 'tcp',
+    security: 'reality',
+    host: '169.58.99.96',
+    uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e',
+    flow: 'xtls-rprx-vision',
+    public_key: 'wURAa_MGOp4qPgEGqSOZLL9NP1tTxKKJnZneT-zLRz4',
+    short_id: 'a0d4be22caa51622',
+    fingerprint: 'chrome',
+    spider_x: '',
+    path: '/',
+    ws_host: '',
+    grpc_service: 'TunService',
+    tcp_type: 'none',
+    alter_id: 0,
+    vmess_security: 'auto',
+    payload: '',
+    allow_insecure: 0,
+    is_gaming: 0,
+    is_active: 1
+};
+
 const REAL_SERVERS = [
-    {
-        display_name: '🌐 B.T.C - Facebook Reality',
-        company_name: 'عام',
-        engine: 'v2ray',
-        protocol: 'vless',
-        network: 'tcp',
-        security: 'reality',
-        host: '169.58.99.96',
-        port: 443,
-        uuid: '2cd80fa8-fa53-4559-ad99-827d8b43969e',
-        sni_hostname: 'm.facebook.com',
-        flow: 'xtls-rprx-vision',
-        public_key: 'wURAa_MGOp4qPgEGqSOZLL9NP1tTxKKJnZneT-zLRz4',
-        short_id: 'a0d4be22caa51622',
-        fingerprint: 'chrome',
-        spider_x: '',
-        path: '/',
-        ws_host: '',
-        grpc_service: 'TunService',
-        tcp_type: 'none',
-        alter_id: 0,
-        vmess_security: 'auto',
-        payload: '',
-        allow_insecure: 0,
-        is_gaming: 0,
-        ping_ms: 40,
-        is_active: 1
-    }
+    { ...COMMON_KEYS, display_name: '🌐 فيسبوك (عام)',   company_name: 'عام',     port: 443,  sni_hostname: 'm.facebook.com',          ping_ms: 40 },
+    { ...COMMON_KEYS, display_name: '📶 فودافون',        company_name: 'فودافون', port: 8443, sni_hostname: 'v-safe.vodafone.com.eg',  ping_ms: 35 },
+    { ...COMMON_KEYS, display_name: '📶 أورنج',          company_name: 'أورنج',   port: 2053, sni_hostname: 'sso.orange.eg',           ping_ms: 35 },
+    { ...COMMON_KEYS, display_name: '📶 اتصالات',        company_name: 'اتصالات', port: 2083, sni_hostname: 'www.etisalat.eg',         ping_ms: 38 },
+    { ...COMMON_KEYS, display_name: '📶 وي (WE)',        company_name: 'وي',      port: 8880, sni_hostname: 'api.te.eg',               ping_ms: 38 }
 ];
 
 // ============================================
@@ -277,11 +259,12 @@ const REAL_SERVERS = [
 // ============================================
 async function cleanupOldServers() {
     try {
+        const allowed = new Set(REAL_SERVERS.map(s => s.sni_hostname));
         const snap = await db.collection('servers').get();
         let deleted = 0;
         for (const doc of snap.docs) {
             const s = doc.data();
-            if (s.host !== '169.58.99.96' || s.sni_hostname !== 'm.facebook.com') {
+            if (!allowed.has(s.sni_hostname)) {
                 await doc.ref.delete();
                 deleted++;
                 console.log('🗑️ حُذف سيرفر قديم: ' + (s.display_name || s.sni_hostname));
@@ -345,14 +328,14 @@ async function seedData() {
                 .get();
             if (snap.empty) {
                 await db.collection('servers').add(s);
-                console.log('✅ +سيرفر ' + s.sni_hostname);
+                console.log('✅ +سيرفر ' + s.sni_hostname + ' (' + s.company_name + ')');
             } else {
                 await snap.docs[0].ref.set(s, { merge: true });
                 console.log('✅ تحديث سيرفر ' + s.sni_hostname);
             }
         }
 
-        console.log('✅ البيانات الافتراضية جاهزة');
+        console.log('✅ البيانات الافتراضية جاهزة — 5 خوادم SNI');
     } catch (error) {
         console.error('❌ خطأ في seedData:', error.message);
     }
@@ -550,26 +533,47 @@ app.get('/api/me', authenticateToken, async (req, res) => {
 });
 
 // ============================================
-// ⭐ الاشتراك: سيرفر Facebook + config جاهز (Direct TUN Mode)
+// ⭐⭐⭐ الاشتراك: اختيار SNI ديناميكياً حسب الشركة
+// مثال: GET /api/user/subscription?company=Vodafone
+//       GET /api/user/subscription?company=فودافون
+//       GET /api/user/subscription                 (تلقائي/الأسرع)
 // ============================================
 app.get('/api/user/subscription', authenticateToken, isUser, async (req, res) => {
     try {
-        const snap = await db.collection('servers').where('is_active', '==', 1).get();
+        const { company } = req.query;
+        const targetCompany = normalizeCompany(company);
+
+        // 1) جلب كل السيرفرات النشطة
+        let snap = await db.collection('servers').where('is_active', '==', 1).get();
         let servers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
 
         if (servers.length === 0) {
             return res.json({ success: false, message: 'لا توجد سيرفرات متاحة حاليًا' });
         }
 
+        // 2) إذا طُلبت شركة معينة، فلترتها
+        if (targetCompany) {
+            const filtered = servers.filter(s => (s.company_name || '') === targetCompany);
+            if (filtered.length > 0) {
+                servers = filtered;
+            } else {
+                console.log('⚠️ لم يُعثر على سيرفر لـ "' + targetCompany + '" — استخدام الأفضل المتاح');
+            }
+        }
+
+        // 3) ترتيب حسب ping (الأفضل أولاً)
         servers.sort((a, b) => (a.ping_ms || 999) - (b.ping_ms || 999));
         const best = servers[0];
         const config = buildV2Config(best);
+
+        console.log('✅ Subscription → ' + (best.display_name || best.sni_hostname) + ' [' + (targetCompany || 'auto') + ']');
 
         res.json({
             success: true,
             server_id: best.id,
             server_name: best.display_name,
             company_name: best.company_name || 'عام',
+            sni_hostname: best.sni_hostname,
             engine: best.engine || 'v2ray',
             config,
             configString: JSON.stringify(config)
@@ -1257,11 +1261,12 @@ async function startServer() {
 
     app.listen(PORT, () => {
         console.log('========================================');
-        console.log('🚀 B.T.C VPN Server Started (Final)');
-        console.log('   m.facebook.com Reality + Direct TUN Mode');
-        console.log('   ✅ tun inbound (gvisor stack, MTU 1280)');
-        console.log('   ✅ DNS via dns-out (no loops)');
-        console.log('   ✅ IPs private → direct (Hotspot works)');
+        console.log('🚀 B.T.C VPN Server Started (Multi-SNI)');
+        console.log('   ✅ م.facebook.com  :443  (عام)');
+        console.log('   ✅ v-safe.vodafone.com.eg :8443 (فودافون)');
+        console.log('   ✅ sso.orange.eg   :2053 (أورنج)');
+        console.log('   ✅ www.etisalat.eg :2083 (اتصالات)');
+        console.log('   ✅ api.te.eg       :8880 (وي)');
         console.log(`📡 Port: ${PORT}`);
         console.log('========================================');
     });
