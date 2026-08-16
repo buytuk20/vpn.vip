@@ -248,7 +248,7 @@ const COMMON_KEYS = {
 
 const REAL_SERVERS = [
     { ...COMMON_KEYS, display_name: '🌐 فيسبوك (عام)',   company_name: 'عام',     port: 443,  sni_hostname: 'm.facebook.com',          ping_ms: 40 },
-    { ...COMMON_KEYS, display_name: '📶 فودافون',        company_name: 'فودافون', port: 8443, sni_hostname: 'v-safe.vodafone.com.eg',  ping_ms: 35 },
+    { ...COMMON_KEYS, display_name: '📶 فودافون', company_name: 'فودافون', port: 8443, sni_hostname: 'web.vodafone.com.eg', ping_ms: 35 },
     { ...COMMON_KEYS, display_name: '📶 أورنج',          company_name: 'أورنج',   port: 2053, sni_hostname: 'sso.orange.eg',           ping_ms: 35 },
     { ...COMMON_KEYS, display_name: '📶 اتصالات',        company_name: 'اتصالات', port: 2083, sni_hostname: 'www.etisalat.eg',         ping_ms: 38 },
     { ...COMMON_KEYS, display_name: '📶 وي (WE)',        company_name: 'وي',      port: 8880, sni_hostname: 'api.te.eg',               ping_ms: 38 }
